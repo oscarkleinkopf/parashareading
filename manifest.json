@@ -1,0 +1,19 @@
+{
+  "name": "Cantoral de Torá",
+  "short_name": "CantoralTorá",
+  "description": "Aprende a cantar tu porción de la Torá con el cantileo Ashkenazi correcto y fonética en español.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#060913",
+  "theme_color": "#060913",
+  "orientation": "any",
+  "categories": ["education", "reference", "books"],
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

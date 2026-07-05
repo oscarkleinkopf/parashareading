@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cantoral de Torá - Aprende a cantar tu Parashá con Tropos Correctos</title>
+    
+    <!-- Meta Tags para SEO -->
+    <meta name="description" content="Aprende a cantar tu porción de la Torá (Parashá) de Bar Mitzvá o Alía con el cantileo Ashkenazi correcto. Encuentra tu parashá por fecha y estudia cada Aliyá con fonética en español, traducción y audio cantado interactivo.">
+    <meta name="keywords" content="Torah, Parasha, Bar Mitzvah, Aliah, Trope, Cantillation, Cantileo, Hebreo, Fonetica, Traducion Espanol, Sefaria, Hebcal, Birchat Hatora, Ashkenazi">
+    <meta name="author" content="Cantoral de Torá">
+    <meta name="theme-color" content="#060913">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Cantoral de Torá — Aprende a cantar tu Parashá">
+    <meta property="og:description" content="Aprende a cantar tu porción de la Torá con el cantileo Ashkenazi correcto. Encuentra tu parashá de Bar Mitzvá, practica con fonética en español y audio cantado interactivo.">
+    <meta property="og:locale" content="es_ES">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Cantoral de Torá — קול תורה">
+    <meta name="twitter:description" content="Practica tu lectura de Torá con tropos Ashkenazi, fonética en español y audio interactivo.">
+    
+    <!-- PWA y Soporte Móvil -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Cantoral de Torá">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <!-- Hojas de Estilo -->
+    <link rel="stylesheet" href="styles.css?v=3.0">
+</head>
+<body>
+
+    <!-- Fondo Arquitectura Decorativa -->
+    <div class="synagogue-arch-bg"></div>
+
+    <div class="container">
+        
+        <!-- Header -->
+        <header>
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <!-- Icono SVG de un rollo de Torá estilizado -->
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h4v16H6V4zm12 16h-6V4h6v16zm-5-14c0-.55.45-1 1-1h2c.55 0 1 .45 1 1s-.45 1-1 1h-2c-.55 0-1-.45-1-1zm0 4c0-.55.45-1 1-1h2c.55 0 1 .45 1 1s-.45 1-1 1h-2c-.55 0-1-.45-1-1zm0 4c0-.55.45-1 1-1h2c.55 0 1 .45 1 1s-.45 1-1 1h-2c-.55 0-1-.45-1-1z"/>
+                    </svg>
+                </div>
+                <div class="app-title">
+                    <h1>קול תורה - Cantoral de Torá</h1>
+                    <p>Chant & Trope Ashkenazi Practice System</p>
+                </div>
+            </div>
+            <div class="header-actions" style="display: flex; gap: 8px;">
+                <button class="btn-icon" id="btnShareApp" title="Compartir Lectura (WhatsApp / Clipboard)">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="btnToggleGlossary" title="Glosario de Tropos (Ta'amim)">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zm-2 16c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Modulo de Seleccion (Buscador) -->
+        <section class="selection-grid animate-fade-in">
+            
+            <div class="glass-panel">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    Buscar Parashá de Lectura
+                </h3>
+                
+                <!-- Selector de Modo de Busqueda -->
+                <div class="tabs-container">
+                    <button class="tab-btn active" id="tabModeList">Elegir por Nombre</button>
+                    <button class="tab-btn" id="tabModeDate">Elegir por Fecha de Bar Mitzvá</button>
+                </div>
+                
+                <!-- Buscador por Lista de Dropdown -->
+                <div id="searchModeList">
+                    <div class="form-group">
+                        <label for="selectParasha">Selecciona una Parashá:</label>
+                        <select id="selectParasha" class="input-control">
+                            <option value="" disabled selected>-- Elige una Parashá --</option>
+                            <optgroup label="Génesis / Bereshít" id="groupBereshit"></optgroup>
+                            <optgroup label="Éxodo / Shemót" id="groupShemot"></optgroup>
+                            <optgroup label="Levítico / Vayikrá" id="groupVayikra"></optgroup>
+                            <optgroup label="Números / Bamidbár" id="groupBamidbar"></optgroup>
+                            <optgroup label="Deuteronomio / Devarím" id="groupDevarim"></optgroup>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Buscador por Calendario Gregoriano -->
+                <div id="searchModeDate" class="hidden">
+                    <div class="form-group">
+                        <label for="inputBarMitzvahDate">Fecha exacta del Bar Mitzvá (o Shabat):</label>
+                        <input type="date" id="inputBarMitzvahDate" class="input-control">
+                    </div>
+                    <button id="btnSearchByDate" class="btn-primary">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;fill:#060913;">
+                            <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+                        </svg>
+                        Calcular Parashá de ese Shabat
+                    </button>
+                </div>
+            </div>
+
+            <!-- Banner Informativo de la Parasha Activa -->
+            <div class="glass-panel info-banner animate-fade-in" id="parashaBanner">
+                <div id="parashaBannerEmpty">
+                    <p style="color:var(--color-text-secondary);text-align:center;">Selecciona una porción de la Torá o ingresa una fecha para comenzar a practicar.</p>
+                </div>
+                <div id="parashaBannerContent" class="hidden">
+                    <div class="parasha-title-hebrew" id="bannerHebrewName">בְּרֵאשִׁית</div>
+                    <div class="parasha-title-banner" id="bannerSpanishName">Bereshít</div>
+                    <div id="bannerBookAndVerses" style="font-weight:600;color:var(--accent-gold);">Génesis 1:1 - 6:8</div>
+                    
+                    <p id="bannerSummary" style="margin-top:10px;font-size:14px;color:var(--color-text-secondary);">
+                        Describe la creación del universo, la historia de Adán y Eva, Caín y Abel, y las generaciones hasta Noé.
+                    </p>
+                    
+                    <div class="parasha-meta-details">
+                        <div class="badge badge-gold">Tradición: Cantileo Ashkenazi</div>
+                        <div class="badge" id="bannerHebrewDate">Hebrew Date: -</div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Selector de Aliyot (Tabs) -->
+        <section class="glass-panel animate-fade-in hidden" id="sectionAliyahSelector">
+            <h3 class="section-title">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+                </svg>
+                Menú de Aliot (Porciones de la Lectura)
+            </h3>
+            <div class="aliyot-panel">
+                <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:5px;">Selecciona la Aliá específica que deseas estudiar y repasar para tu lectura:</p>
+                <div class="aliyot-selector" id="aliyahSelectorChips">
+                    <div class="aliyah-chip active" data-aliyah="1">1ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="2">2ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="3">3ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="4">4ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="5">5ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="6">6ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="7">7ª Aliyá</div>
+                    <div class="aliyah-chip" data-aliyah="maftir">Maftír</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Entrenador de Bendiciones de Aliah (Modulo Ritual) -->
+        <section class="glass-panel blessings-panel animate-fade-in hidden" id="sectionBlessings">
+            <div class="blessings-toggle-header" id="blessingsToggle">
+                <h3 class="section-title" style="margin-bottom:0;color:var(--accent-blue-light);">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill:var(--accent-blue-light);">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+                    </svg>
+                    Entrenador Ritual: Bendiciones de la Torá (Birchot HaTorá)
+                </h3>
+                <span id="blessingsChevron" style="color:var(--accent-blue-light);font-weight:bold;font-size:20px;">+</span>
+            </div>
+            
+            <div class="blessings-body" id="blessingsBody">
+                <div class="blessing-ritual-step">
+                    <strong>Ritual en la Bimá:</strong> Cuando te llamen para la Aliá, acércate a la mesa. El lector te mostrará el inicio de la porción. Toca ese punto con la esquina de tu Talit (o el cinturón de la Torá) y bésalo. Luego, sostén ambas manijas del rollo y recita la bendición inicial.
+                </div>
+
+                <!-- Bendicion ANTES de la Lectura -->
+                <div class="blessing-card">
+                    <h4>
+                        <span>1. Bendición ANTES de la Lectura (Birjat HaTorá Rishoná)</span>
+                    </h4>
+                    
+                    <!-- Hebrew -->
+                    <div class="column-hebrew" style="margin-bottom:15px; border-left:none;">
+                        בָּרְכוּ אֶת יְהוָה הַמְּבֹרָךְ׃<br>
+                        <span style="color:var(--accent-gold); font-weight:bold;">(Congregación responde, luego tú repites):</span><br>
+                        בָּרוּךְ יְהוָה הַמְּבֹרָךְ לְעוֹלָם וָעֶד׃<br>
+                        בָּרוּךְ אַתָּה יְהוָה אֱלֹהֵינוּ מֶלֶךְ הָעוֹלָם, אֲשֶׁר בָּחַר בָּנוּ מִכָּל הָעַמִּים, וְנָתַן לָנוּ אֶת תּוֹרָתוֹ. בָּרוּךְ אַתָּה יְהוָה, נוֹתֵן הַתּוֹרָה׃
+                    </div>
+                    
+                    <!-- Phonetics -->
+                    <div style="font-style:italic; font-size:14px; color:var(--color-text-secondary); margin-bottom:15px;">
+                        <strong>Fonética:</strong> Barejú et Adonái hamevoráj.<br>
+                        <span style="color:var(--accent-gold); font-weight:bold;">(Repetición):</span> Barúj Adonái hamevoráj leolám vaéd.<br>
+                        Barúj atá Adonái, Elohéinu mélej haolám, ashér bajár bánu mikól haamím, venatán lánu et torató. Barúj atá Adonái, notén hatorá.
+                    </div>
+                    
+                    <!-- Translation -->
+                    <div style="font-size:13px; color:var(--color-text-muted);">
+                        <strong>Traducción:</strong> Bendigan al Eterno, quien es bendito. Bendito sea el Eterno, quien es bendito por toda la eternidad. Bendito eres Tú, Eterno, Dios nuestro, Rey del Universo, que nos elegiste entre todos los pueblos y nos entregaste Tu Torá. Bendito eres Tú, Eterno, dador de la Torá.
+                    </div>
+
+                    <button class="btn-primary" style="margin-top:15px; background:var(--accent-blue-gradient); color:white; box-shadow:none; width:auto;" onclick="App.playBlessing('before')">
+                        Escuchar Canto (Antes)
+                    </button>
+                </div>
+
+                <div class="blessing-ritual-step">
+                    <strong>Durante la Lectura:</strong> Escucha atentamente la porción leída mientras mantienes tu mano izquierda sosteniendo la manija inferior de la Torá.
+                </div>
+
+                <!-- Bendicion DESPUES de la Lectura -->
+                <div class="blessing-card">
+                    <h4>
+                        <span>2. Bendición DESPUÉS de la Lectura (Birjat HaTorá Ajaroná)</span>
+                    </h4>
+                    
+                    <!-- Hebrew -->
+                    <div class="column-hebrew" style="margin-bottom:15px; border-left:none;">
+                        בָּרוּךְ אַתָּה יְהוָה אֱלֹהֵינוּ מֶלֶךְ הָעוֹלָם, אֲשֶׁר נָתַן לָנוּ תּוֹרַת אֶמֶת, וְחַיֵּי עוֹלָם נָטַע בְּתוֹכֵנוּ. בָּרוּךְ אַתָּה יְהוָה, נוֹתֵן הַתּוֹרָה׃
+                    </div>
+                    
+                    <!-- Phonetics -->
+                    <div style="font-style:italic; font-size:14px; color:var(--color-text-secondary); margin-bottom:15px;">
+                        <strong>Fonética:</strong> Barúj atá Adonái, Elohéinu mélej haolám, ashér natán lánu torát emét, vejaiéi olám natá betojénu. Barúj atá Adonái, notén hatorá.
+                    </div>
+                    
+                    <!-- Translation -->
+                    <div style="font-size:13px; color:var(--color-text-muted);">
+                        <strong>Traducción:</strong> Bendito eres Tú, Eterno, Dios nuestro, Rey del Universo, que nos entregaste una Torá de verdad, y sembraste en nosotros vida eterna. Bendito eres Tú, Eterno, dador de la Torá.
+                    </div>
+
+                    <button class="btn-primary" style="margin-top:15px; background:var(--accent-blue-gradient); color:white; box-shadow:none; width:auto;" onclick="App.playBlessing('after')">
+                        Escuchar Canto (Después)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visor Central de la Lectura (Estudio Paralelo) -->
+        <main class="glass-panel animate-fade-in hidden" id="sectionReadingBoard">
+            <div class="study-section">
+                
+                <!-- Controles del visor -->
+                <div class="study-controls">
+                    <h3 class="section-title" style="margin-bottom:0;" id="readingBoardTitle">
+                        Estudio Paralelo: Bereshít - Aliá 1
+                    </h3>
+                    
+                    <div class="view-mode-tabs" style="display: flex; gap: 4px; background: rgba(255, 255, 255, 0.05); padding: 3px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <button class="view-tab-btn active" id="viewTabParallel" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--radius-xs); border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: all 0.2s ease;">Vista Completa</button>
+                        <button class="view-tab-btn" id="viewTabVerse" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--radius-xs); border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: all 0.2s ease;">Verso a Verso</button>
+                    </div>
+
+                    <div class="text-size-adjuster">
+                        <span style="font-size:12px; color:var(--color-text-secondary); font-family:var(--font-ui);">Tamaño de Fuente:</span>
+                        <button class="btn-icon" id="btnFontDecrease" title="Achicar letra">-</button>
+                        <button class="btn-icon" id="btnFontIncrease" title="Agrandar letra">+</button>
+                    </div>
+                </div>
+
+                <div class="practice-panel" id="practicePanel">
+                    <div class="practice-copy">
+                        <div class="practice-kicker">Modo practica guiada</div>
+                        <div class="practice-title" id="practiceTitle">Empieza escuchando el primer versiculo</div>
+                        <div class="practice-progress-text" id="practiceProgressText">0 de 0 versiculos marcados</div>
+                    </div>
+                    <div class="practice-meter" aria-hidden="true">
+                        <div class="practice-meter-fill" id="practiceMeterFill"></div>
+                    </div>
+                    <div class="practice-actions">
+                        <button type="button" class="btn-secondary" id="btnPracticePlay">Practicar desde pendiente</button>
+                        <button type="button" class="btn-secondary" id="btnPracticeMark">Marcar verso actual</button>
+                        <button type="button" class="btn-secondary ghost" id="btnPracticeReset">Reiniciar progreso</button>
+                    </div>
+                </div>
+
+                <div class="translation-note hidden" id="translationNotice">
+                    Algunas traducciones externas vienen en ingles desde Sefaria. El hebreo y la fonetica siguen disponibles para practicar.
+                </div>
+
+                <!-- Cargador y Estado de Carga -->
+                <div id="readingLoader" class="hidden">
+                    <div class="loader"></div>
+                    <p style="text-align:center; color:var(--color-text-secondary); font-size:14px;">Descargando porción y cantilaciones en tiempo real desde Sefaria...</p>
+                </div>
+
+                <!-- Contenedor Principal de los Versículos -->
+                <div class="verse-container" id="verseContainer">
+                    <!-- Los versículos se cargarán aquí dinámicamente -->
+                </div>
+
+                <!-- Contenedor del Modo Verso a Verso (Flashcard) -->
+                <div class="verse-flashcard-container hidden" id="verseFlashcardContainer" style="margin-top: 20px;">
+                    <!-- Tarjeta del Versículo Activo -->
+                    <div class="verse-flashcard animate-fade-in" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: var(--radius-sm); padding: 30px; margin-bottom: 20px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2); transition: all 0.3s ease;">
+                        <div class="flashcard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 10px;">
+                            <span class="flashcard-badge" id="flashcardVerseNumber" style="font-family: var(--font-ui); font-size: 13px; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 1px;">Versículo 1</span>
+                            <button class="btn-icon" id="flashcardBtnMark" title="Marcar como Completado" style="width: 32px; height: 32px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50%;">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill: var(--color-text-secondary); width: 16px; height: 16px;">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Texto Hebreo -->
+                        <div class="flashcard-hebrew-box" style="text-align: center; margin: 30px 0; direction: rtl;">
+                            <div class="flashcard-hebrew" id="flashcardHebrew" style="font-family: 'SBL Hebrew', 'Taamey Ashkenaz', 'Ezra SIL', Georgia, serif; font-size: 38px; line-height: 1.8; color: #fff;">בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים</div>
+                        </div>
+                        
+                        <!-- Fonética y Traducción -->
+                        <div class="flashcard-details" style="display: flex; flex-direction: column; gap: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
+                            <div class="flashcard-phonetics" id="flashcardPhonetics" style="font-style: italic; font-size: 16px; color: var(--color-text-secondary); text-align: center; line-height: 1.5;">Bereshít bará Elohím...</div>
+                            <div class="flashcard-translation" id="flashcardTranslation" style="font-size: 15px; color: var(--color-text-muted); text-align: center; line-height: 1.6;">En el principio creó Dios...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Controles de Navegación del Verso a Verso -->
+                    <div class="flashcard-nav" style="display: flex; gap: 12px; align-items: center;">
+                        <button class="btn-secondary" id="flashcardBtnPrev" style="display: flex; align-items: center; gap: 6px; padding: 12px 20px;">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 18px; height: 18px; fill: currentColor; transform: rotate(180deg);">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                            </svg>
+                            Anterior
+                        </button>
+                        
+                        <button class="btn-primary" id="flashcardBtnPlay" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; font-weight: 700;">
+                            <svg id="flashcardPlayIcon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; fill: currentColor;">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            <svg id="flashcardPauseIcon" class="hidden" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; fill: currentColor;">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                            </svg>
+                            <span id="flashcardPlayText">Escuchar</span>
+                        </button>
+                        
+                        <button class="btn-secondary" id="flashcardBtnNext" style="display: flex; align-items: center; gap: 6px; padding: 12px 20px;">
+                            Siguiente
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 18px; height: 18px; fill: currentColor;">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="flashcard-hints" style="text-align: center; margin-top: 15px; font-size: 11px; color: var(--color-text-muted); font-family: var(--font-ui);">
+                        Atajos: <strong>← / →</strong> para navegar • <strong>Espacio</strong> reproducir • <strong>M</strong> completar. Desliza a los lados en pantallas táctiles.
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- Glosario Interactiva de Tropos Ashkenazi -->
+        <section class="glass-panel animate-fade-in hidden" id="sectionTropeGlossary">
+            <h3 class="section-title">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/>
+                </svg>
+                Glosario de Cantilación Ashkenazi (Tropos / Ta'amim)
+            </h3>
+            <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:15px;">
+                Los tropos (*ta'amim*) representan las notas y pausas musicales tradicionales de la Torá. Haz clic sobre cualquier tarjeta para escuchar su melodía Ashkenazi tradicional sintetizada y leer su explicación pedagógica:
+            </p>
+            <div class="trope-glossary-grid" id="tropeGlossaryContainer">
+                <!-- Se poblará dinámicamente con los tropos disponibles -->
+            </div>
+            
+            <!-- Cuadro Informativo del Trope seleccionado -->
+            <div id="tropeDetailsCard" class="hidden" style="margin-top:20px; padding:15px; background:rgba(2,4,10,0.4); border:1px solid var(--accent-gold); border-radius:var(--radius-sm); animation:fadeIn 0.3s ease-out forwards;">
+                <h4 id="tropeDetailsName" style="color:var(--accent-gold); font-family:var(--font-ui); font-size:16px;">Nombre del Trope</h4>
+                <p id="tropeDetailsType" style="font-size:12px; color:var(--accent-blue-light); margin-bottom:10px; font-weight:600;">Tipo: -</p>
+                <p id="tropeDetailsDesc" style="font-size:14px; color:var(--color-text-secondary);">Descripción...</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <p>© 2026 קול תורה - Cantoral de Torá. Desarrollado con excelencia visual e interactividad musical.</p>
+            <p style="margin-top:5px; font-size:11px; color:var(--color-text-muted);">
+                Datos del calendario provistos por <a href="https://www.hebcal.com" target="_blank" rel="noopener">Hebcal API</a>. Textos bíblicos provistos por <a href="https://www.sefaria.org" target="_blank" rel="noopener">Sefaria API</a>.
+            </p>
+        </footer>
+
+    </div>
+
+    <!-- Dock del Reproductor de Audio Principal -->
+    <div class="audio-player-dock hidden" id="audioPlayerDock">
+        <div class="player-controls">
+            <button class="btn-play-pause" id="playerPlayPauseBtn" title="Reproducir / Pausar">
+                <!-- Play Icon -->
+                <svg id="playIconSvg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <!-- Pause Icon (hidden by default) -->
+                <svg id="pauseIconSvg" class="hidden" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="player-track-info">
+            <div class="track-title" id="playerTrackTitle">Practicando: Bereshít - Primera Aliyá</div>
+            <div class="progress-container">
+                <span class="time-display" id="playerCurrentTime">00:00</span>
+                <div class="progress-bar-bg" id="playerProgressBar">
+                    <div class="progress-bar-fill" id="playerProgressBarFill"></div>
+                </div>
+                <span class="time-display" id="playerTotalTime">02:15</span>
+            </div>
+        </div>
+        
+        <div class="player-settings">
+            <span style="font-size:11px; color:var(--color-text-muted); font-family:var(--font-ui);">Modo:</span>
+            <select id="playerAudioModeSelect" class="speed-badge" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--color-text-secondary); padding: 4px 8px; border-radius: var(--radius-xs); font-size: 11px; font-family: var(--font-ui); cursor: pointer; outline: none; margin-right: 8px;">
+                <option value="trope" style="background: #060913; color: #fff;">Solo Tropos</option>
+                <option value="hebrew" style="background: #060913; color: #fff;" selected>Tropos + Voz Heb</option>
+                <option value="spanish" style="background: #060913; color: #fff;">Tropos + Voz Esp</option>
+            </select>
+
+            <span style="font-size:11px; color:var(--color-text-muted); font-family:var(--font-ui);">Velocidad:</span>
+            <button type="button" class="speed-badge" id="playerSpeedBtn" title="Cambiar velocidad">1.0x</button>
+            <button class="btn-icon" id="playerLoopBtn" title="Bucle encendido/apagado" style="width:32px; height:32px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;">
+                    <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Script de Síntesis de Tropos -->
+    <script src="trope_synthesizer.js?v=3.0"></script>
+    
+    <!-- Script Principal de la Lógica de la Aplicación -->
+    <script src="app.js?v=3.0"></script>
+    
+    <!-- Registro de Service Worker PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then((reg) => console.log('Service Worker registrado. Scope:', reg.scope))
+                    .catch((err) => console.warn('Error al registrar el Service Worker:', err));
+            });
+        }
+    </script>
+</body>
+</html>
