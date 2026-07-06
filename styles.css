@@ -143,6 +143,65 @@ header {
     gap: 15px;
 }
 
+/* Dedication Banner - IDF Heroes */
+.dedication-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(34, 49, 26, 0.92) 0%, rgba(55, 75, 42, 0.92) 50%, rgba(28, 41, 21, 0.92) 100%);
+    border: 1px solid var(--accent-gold);
+    border-radius: var(--radius-md);
+    padding: 14px 24px;
+    margin: 25px 0 25px 0;
+    box-shadow: 0 4px 20px rgba(25, 38, 18, 0.6), 0 0 18px rgba(212, 175, 55, 0.25);
+    text-align: center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: var(--transition-smooth);
+    position: relative;
+    overflow: hidden;
+}
+
+.dedication-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-gold-gradient);
+}
+
+.dedication-banner:hover {
+    box-shadow: 0 6px 25px rgba(25, 38, 18, 0.8), 0 0 25px rgba(212, 175, 55, 0.4);
+    border-color: var(--accent-gold-hover);
+}
+
+.dedication-banner-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-gold);
+    filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.5));
+}
+
+.dedication-banner-text {
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #fce8a6;
+    text-transform: uppercase;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.dedication-banner-symbol {
+    color: var(--accent-gold);
+    font-size: 16px;
+    filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.4));
+}
+
 /* Glassmorphism Panel styles */
 .glass-panel {
     background: var(--panel-bg);
