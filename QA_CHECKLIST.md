@@ -1,59 +1,72 @@
-# QA Checklist (Manual)
+# Checklist de QA
 
-## 1) Smoke local
+Validación manual orientada al producto: **entrenar una Aliá a la Torá** (lectura + cantileo + memorización) con hebreo básico.
 
-- [ ] Servir el sitio localmente (`python3 -m http.server 4173`)
-- [ ] Abrir `http://127.0.0.1:4173`
-- [ ] Confirmar carga visual sin errores fatales
-- [ ] Confirmar carga de `app.js`, `styles.css`, `manifest.json`
+---
 
-## 2) Flujo principal de lectura
+## 1) Smoke
 
-- [ ] Seleccionar Parasha por nombre desde dropdown
-- [ ] Validar render de banner (nombre, hebreo, referencia)
-- [ ] Cambiar entre aliyot y confirmar recarga del texto
-- [ ] Confirmar que los botones de reproduccion responden
+- [ ] Servir localmente: `python3 -m http.server 4173`
+- [ ] Abrir `http://127.0.0.1:4173` sin errores fatales en consola
+- [ ] Cargan `app.js`, `styles.css`, `manifest.json`
 
-## 3) Flujo por fecha (Hebcal)
+## 2) Encontrar la porción (estudiante)
 
-- [ ] Buscar una fecha valida y confirmar parasha encontrada
-- [ ] Probar una fecha especial/festiva y revisar fallback de lectura especial
-- [ ] Confirmar mensajes de error amigables en casos sin datos
+- [ ] Elegir Parashá por nombre y ver banner (hebreo, nombre, referencia, resumen)
+- [ ] Buscar por fecha válida y obtener Parashá del Shabat
+- [ ] Probar fecha de festividad y revisar lectura especial / mensaje claro
+- [ ] Compartir enlace y reabrir el mismo `#Parasha/Aliya`
 
-## 4) Flujo de textos (Sefaria)
+## 3) Leer la Aliá
 
-- [ ] Confirmar carga de hebreo para una aliya no local
-- [ ] Confirmar fonetica generada
-- [ ] Confirmar traduccion (espanol si existe, fallback cuando no)
-- [ ] Verificar comportamiento cuando Sefaria responde `error`
+- [ ] Cambiar entre Aliyot 1–7 y Maftír
+- [ ] Ver hebreo + fonética + traducción en modo paralelo
+- [ ] Ajustar tamaño de fuente del hebreo
+- [ ] Tocar una palabra con trope y oír el taam
 
-## 5) Modo practica
+## 4) Audio y cantileo
 
-- [ ] Cambiar a modo verso a verso
-- [ ] Navegar con botones prev/next
-- [ ] Probar teclado (`<-`, `->`, espacio, `m`)
-- [ ] Marcar/desmarcar versiculos y validar persistencia
+- [ ] Reproducir / pausar la Aliá
+- [ ] Cambiar velocidad y bucle
+- [ ] Probar modos: solo tropos / hebreo / fonética español
+- [ ] Confirmar degradación amigable si falta voz del sistema
 
-## 6) Accesibilidad basica
+## 5) Memorización (verso a verso)
 
-- [ ] Navegacion por teclado en controles principales
-- [ ] `aria-selected` cambia en chips de aliyot
-- [ ] Botones interactivos activables por Enter/Espacio
+- [ ] Cambiar a modo flashcard
+- [ ] Navegar con botones, flechas y swipe
+- [ ] Escuchar el verso actual (botón / espacio)
+- [ ] Marcar / desmarcar (botón / tecla `M`)
+- [ ] Recargar la página y comprobar que el progreso persiste
+- [ ] Usar “continuar desde lo pendiente” y reset de progreso
 
-## 7) PWA y cache
+## 6) Bendiciones y glosario
 
-- [ ] Confirmar presencia de `manifest.json`
-- [ ] Confirmar registro de service worker
-- [ ] Validar que actualizaciones de HTML revalidan correctamente
+- [ ] Abrir sección de bendiciones y reproducir práctica
+- [ ] Abrir glosario de tropos y escuchar varias tarjetas
 
-## 8) Compatibilidad minima
+## 7) APIs (regresión)
 
-- [ ] Chrome (desktop)
-- [ ] Safari/iOS (voz hebreo/espanol cuando exista)
+- [ ] Carga dinámica desde Sefaria en una Aliá que no sea Bereshit 1
+- [ ] Aviso visible si la traducción no es española
+- [ ] Fallo de red o referencia inválida: mensaje en UI, sin romper la app
+
+## 8) Accesibilidad y PWA
+
+- [ ] Controles principales usables por teclado
+- [ ] Chips de Aliá actualizan `aria-selected`
+- [ ] Manifest y service worker presentes; HTML revalida tras cambios
+
+## 9) Dispositivos
+
+- [ ] Chrome desktop
 - [ ] Firefox (flujo base)
+- [ ] Safari / iOS (audio y voces)
 
-## 9) Errores y observabilidad
+## 10) Criterio de “listo para practicar”
 
-- [ ] Revisar consola del navegador durante uso normal
-- [ ] Confirmar que fallos de red no rompen toda la UI
-- [ ] Confirmar mensajes de error claros al usuario final
+Una build se considera usable para entrenamiento si un usuario nuevo puede, en menos de 5 minutos:
+
+1. encontrar su Parashá/Aliá,
+2. oír al menos un versículo con tropos,
+3. marcar un versículo como aprendido en modo verso a verso.
