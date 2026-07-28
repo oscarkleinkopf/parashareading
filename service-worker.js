@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cantoral-tora-shell-v3';
+const CACHE_NAME = 'cantoral-tora-shell-v3.1';
 const API_CACHE_NAME = 'cantoral-tora-api-v3';
 
 const ASSETS_TO_CACHE = [
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   'styles.css',
   'app.js',
   'trope_synthesizer.js',
+  'chanted_recordings.js',
   'manifest.json',
   'icon.png'
 ];
