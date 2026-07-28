@@ -22,17 +22,20 @@ index.html
 - Una Aliá de alta fidelidad (Bereshit 1) vive en `localDatabase` para uso offline inmediato.
 - El resto de textos se pide a Sefaria en tiempo de ejecución.
 - Progreso de memorización: `localStorage` clave `cantoralPracticeProgress`.
+- Grabaciones cantadas: IndexedDB (`cantoralChantedRecordings`) vía `chanted_recordings.js`.
 
 ---
 
 ## APIs externas
 
-Permitidas en la CSP de `netlify.toml` (`connect-src`):
+Permitidas en la CSP de `netlify.toml` (`connect-src` / `media-src`):
 
 | Servicio | Uso |
 | --- | --- |
 | Hebcal | Parashá del Shabat a partir de una fecha |
 | Sefaria | Texto hebreo y traducción por referencia de Aliá |
+| Mechon Mamre (opcional) | MP3 de hebreo hablado por capítulo |
+| URL HTTPS arbitraria | Audio remoto guardado por el usuario (`media-src https:`) |
 
 Comportamientos a tener en cuenta:
 
@@ -46,9 +49,11 @@ Comportamientos a tener en cuenta:
 
 1. **Tropos** — `TropeSynthesizer` (Web Audio API) con motivos por taam.
 2. **Voz** — `speechSynthesis` del navegador (`he-IL` o `es-ES` según modo).
-3. Cola de reproducción por versículo: detecta marcas de cantileación Unicode y programa motivos + karaoke de palabras.
+3. **Grabación cantada** — elemento `Audio` con blob local (IndexedDB) o URL HTTPS.
+4. Cola de reproducción por versículo (modos trope/voz): detecta marcas de cantileación Unicode y programa motivos + karaoke de palabras.
 
 Sin voz hebrea/española instalada, la app degrada el modo de audio y notifica al usuario.
+Sin grabación asociada a la Aliá, el modo «Grabación cantada» no se activa.
 
 ---
 

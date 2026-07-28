@@ -64,7 +64,7 @@ Toca una palabra hebrea con trope para **oír ese taam** y ver su nombre en el g
 
 ---
 
-## Paso 4 — Escuchar el cantileo
+## Paso 4 — Escuchar el cantileo (y el texto cantado)
 
 Abre el reproductor (al pulsar un versículo o el botón de reproducción):
 
@@ -75,8 +75,21 @@ Abre el reproductor (al pulsar un versículo o el botón de reproducción):
   - *Solo tropos* — melodía de los taamim.
   - *Hebreo* — voz del sistema en hebreo (si el dispositivo la tiene).
   - *Fonética (español)* — la app lee la fonética en español.
+  - *Grabación cantada* — audio completo de la Aliá (rabino u otra fuente).
 
-Practica primero lento con fonética, luego sube la velocidad y pasa a solo tropos + hebreo.
+### Grabación del rabino (recomendado)
+
+En el panel **Grabación de la Aliá**:
+
+1. Sube un MP3/M4A/WAV/OGG de tu porción, **o**
+2. Pega una URL HTTPS al archivo de audio, **o**
+3. Abre **Fuentes recomendadas** (Mechon Mamre, Sephardic Hazzanut, etc.).
+
+Luego elige el modo **Grabación cantada** en el reproductor.
+
+Detalle de sitios y licencias: [Fuentes de audio](FUENTES_DE_AUDIO.md).
+
+Practica primero lento con fonética, luego con la grabación real, y por último intenta solo con el hebreo.
 
 ---
 

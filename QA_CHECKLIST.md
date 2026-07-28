@@ -31,6 +31,15 @@ Validación manual orientada al producto: **entrenar una Aliá a la Torá** (lec
 - [ ] Probar modos: solo tropos / hebreo / fonética español
 - [ ] Confirmar degradación amigable si falta voz del sistema
 
+## 4b) Grabación cantada
+
+- [ ] Subir un MP3 de prueba para una Aliá y ver estado «Lista»
+- [ ] Reproducir en modo **Grabación cantada** (play, pausa, scrub, velocidad, bucle)
+- [ ] Guardar una URL HTTPS (p. ej. Mechon Mamre) y reproducirla
+- [ ] Quitar la grabación y confirmar que el modo vuelve a tropos/voz
+- [ ] Abrir **Fuentes recomendadas** y comprobar enlaces
+- [ ] Recargar la página y verificar que la subida local persiste
+
 ## 5) Memorización (verso a verso)
 
 - [ ] Cambiar a modo flashcard

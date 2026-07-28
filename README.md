@@ -59,7 +59,9 @@ Consejo: practica primero con fonética + audio, luego solo hebreo, y por últim
 - **Fonética orientada al español** generada a partir del hebreo vocalizado.
 - **Traducción** (español cuando Sefaria lo ofrece; aviso si cae a inglés).
 - Reproductor de **cantileo Ashkenazi** (tropos / taamim).
-- Modos de audio: solo tropos, hebreo hablado o fonética en español.
+- Modos de audio: solo tropos, hebreo hablado, fonética en español, o **grabación cantada completa**.
+- **Subida de grabaciones** del rabino / baal koreh (por Aliá) y soporte de URL HTTPS.
+- Catálogo de [fuentes de audio](docs/FUENTES_DE_AUDIO.md) para practicar el texto cantado.
 - **Modo verso a verso** (flashcards) con teclado y gestos en móvil.
 - **Progreso de práctica** guardado en el navegador (versículos marcados).
 - Glosario interactivo de tropos.
@@ -88,6 +90,7 @@ Abre [http://127.0.0.1:4173](http://127.0.0.1:4173).
 | `index.html` | Interfaz de estudio y práctica |
 | `app.js` | Lógica principal: Parashot, Aliyot, APIs, audio, memorización |
 | `trope_synthesizer.js` | Síntesis de tropos Ashkenazi |
+| `chanted_recordings.js` | Biblioteca local de grabaciones cantadas (IndexedDB + URL) |
 | `styles.css` | Estilos |
 | `manifest.json` / `service-worker.js` | PWA |
 | `netlify.toml` | Despliegue y headers en Netlify |
@@ -95,6 +98,7 @@ Abre [http://127.0.0.1:4173](http://127.0.0.1:4173).
 Documentación adicional:
 
 - [Guía de uso para quien practica](docs/GUIA_DE_USO.md)
+- [Fuentes de audio cantado](docs/FUENTES_DE_AUDIO.md)
 - [Notas técnicas para quien desarrolla](docs/NOTAS_TECNICAS.md)
 - [Checklist de QA](QA_CHECKLIST.md)
 

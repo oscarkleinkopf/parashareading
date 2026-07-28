@@ -25,7 +25,9 @@ const App = {
         activeHebrewList: [],
         activePhoneticsList: [],
         activeTranslationList: [],
-        audioMode: 'hebrew' // 'trope', 'hebrew' or 'spanish'
+        audioMode: 'hebrew', // 'trope', 'hebrew', 'spanish' or 'recording'
+        currentRecording: null, // IndexedDB / URL record for active Aliyah
+        recordingTickInterval: null
     },
 
     // 54 Parashot catalog indexed by book
@@ -796,6 +798,17 @@ const App = {
         document.getElementById('playerAudioModeSelect').addEventListener('change', (e) => {
             const mode = e.target.value;
             this.state.audioMode = mode;
+
+            if (mode === 'recording') {
+                if (!this.state.currentRecording) {
+                    this.showNotification('Primero sube o guarda una grabación cantada para esta Aliá.');
+                    this.state.audioMode = 'hebrew';
+                    e.target.value = 'hebrew';
+                    return;
+                }
+                this.stopAudio();
+                return;
+            }
             
             // Check voice compatibility for Hebrew
             if (mode === 'hebrew' && window.speechSynthesis) {
@@ -824,7 +837,307 @@ const App = {
         document.getElementById('btnPracticeMark').addEventListener('click', () => this.markCurrentVerseComplete());
         document.getElementById('btnPracticeReset').addEventListener('click', () => this.resetCurrentProgress());
 
+        this.setupRecordingPanelListeners();
         this.enhanceKeyboardAccess();
+    },
+
+    setupRecordingPanelListeners() {
+        const fileInput = document.getElementById('inputRecordingFile');
+        const urlInput = document.getElementById('inputRecordingUrl');
+        if (!fileInput) return;
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (!file) return;
+            await this.handleRecordingUpload(file);
+        });
+
+        document.getElementById('btnSaveRecordingUrl').addEventListener('click', async () => {
+            await this.handleRecordingUrlSave(urlInput.value);
+        });
+
+        document.getElementById('btnRemoveRecording').addEventListener('click', async () => {
+            await this.handleRecordingRemove();
+        });
+
+        document.getElementById('btnPlayRecording').addEventListener('click', () => {
+            const select = document.getElementById('playerAudioModeSelect');
+            if (select) {
+                select.value = 'recording';
+                this.state.audioMode = 'recording';
+            }
+            this.playChantedRecording();
+        });
+
+        document.getElementById('btnOpenAudioSources').addEventListener('click', () => {
+            const box = document.getElementById('recordingSourcesBox');
+            box.classList.toggle('hidden');
+            if (!box.classList.contains('hidden')) {
+                this.renderRecordingSources();
+                box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    },
+
+    async refreshRecordingPanel() {
+        const statusEl = document.getElementById('recordingStatusText');
+        const playBtn = document.getElementById('btnPlayRecording');
+        const removeBtn = document.getElementById('btnRemoveRecording');
+        const urlInput = document.getElementById('inputRecordingUrl');
+        if (!statusEl || !this.state.currentParasha) {
+            this.state.currentRecording = null;
+            return;
+        }
+
+        try {
+            const record = await ChantedRecordings.get(this.state.currentParasha.id, this.state.currentAliyah);
+            this.state.currentRecording = record;
+            if (record) {
+                const sizeLabel = record.size ? ` · ${ChantedRecordings.formatBytes(record.size)}` : '';
+                const kind = record.sourceType === 'url' ? 'URL' : 'archivo local';
+                statusEl.textContent = `Lista: ${record.label} (${kind}${sizeLabel}). Usa el modo «Grabación cantada» en el reproductor.`;
+                playBtn.disabled = false;
+                removeBtn.disabled = false;
+                if (urlInput && record.url) urlInput.value = record.url;
+            } else {
+                statusEl.textContent = 'Todavía no hay grabación para esta Aliá. Sube el audio del rabino o pega un enlace HTTPS.';
+                playBtn.disabled = true;
+                removeBtn.disabled = true;
+                if (this.state.audioMode === 'recording') {
+                    this.state.audioMode = 'hebrew';
+                    const select = document.getElementById('playerAudioModeSelect');
+                    if (select) select.value = 'hebrew';
+                }
+            }
+        } catch (err) {
+            console.warn('Recording panel error:', err);
+            statusEl.textContent = 'No se pudo leer la biblioteca de grabaciones de este navegador.';
+            playBtn.disabled = true;
+            removeBtn.disabled = true;
+        }
+
+        const sourcesBox = document.getElementById('recordingSourcesBox');
+        if (sourcesBox && !sourcesBox.classList.contains('hidden')) {
+            this.renderRecordingSources();
+        }
+    },
+
+    async handleRecordingUpload(file) {
+        if (!this.state.currentParasha) {
+            this.showNotification('Elige primero una Parashá y Aliá.');
+            return;
+        }
+        if (!file.type.startsWith('audio/') && !/\.(mp3|m4a|wav|ogg|aac)$/i.test(file.name)) {
+            this.showNotification('El archivo debe ser de audio (mp3, m4a, wav, ogg…).');
+            return;
+        }
+        try {
+            await ChantedRecordings.saveBlob({
+                parashaId: this.state.currentParasha.id,
+                aliyah: this.state.currentAliyah,
+                blob: file,
+                fileName: file.name,
+                label: file.name,
+                sourceType: 'upload'
+            });
+            await this.refreshRecordingPanel();
+            const select = document.getElementById('playerAudioModeSelect');
+            if (select) {
+                select.value = 'recording';
+                this.state.audioMode = 'recording';
+            }
+            this.showNotification('Grabación guardada en este navegador. Ya puedes escuchar el texto cantado.');
+        } catch (err) {
+            console.error(err);
+            this.showNotification(err.message || 'No se pudo guardar la grabación.');
+        }
+    },
+
+    async handleRecordingUrlSave(url) {
+        if (!this.state.currentParasha) {
+            this.showNotification('Elige primero una Parashá y Aliá.');
+            return;
+        }
+        try {
+            await ChantedRecordings.saveUrl({
+                parashaId: this.state.currentParasha.id,
+                aliyah: this.state.currentAliyah,
+                url,
+                label: 'Grabación remota'
+            });
+            await this.refreshRecordingPanel();
+            const select = document.getElementById('playerAudioModeSelect');
+            if (select) {
+                select.value = 'recording';
+                this.state.audioMode = 'recording';
+            }
+            this.showNotification('URL de audio guardada para esta Aliá.');
+        } catch (err) {
+            this.showNotification(err.message || 'URL inválida.');
+        }
+    },
+
+    async handleRecordingRemove() {
+        if (!this.state.currentParasha) return;
+        try {
+            await ChantedRecordings.remove(this.state.currentParasha.id, this.state.currentAliyah);
+            const urlInput = document.getElementById('inputRecordingUrl');
+            if (urlInput) urlInput.value = '';
+            await this.refreshRecordingPanel();
+            this.showNotification('Grabación eliminada de este navegador.');
+        } catch (err) {
+            this.showNotification('No se pudo eliminar la grabación.');
+        }
+    },
+
+    renderRecordingSources() {
+        const list = document.getElementById('recordingSourcesList');
+        const intro = document.getElementById('recordingSourcesIntro');
+        if (!list) return;
+        list.innerHTML = '';
+
+        const parasha = this.state.currentParasha;
+        const bookKey = parasha
+            ? ChantedRecordings.bookKeyForParasha(parasha.id, this.parashotCatalog)
+            : null;
+
+        const items = [];
+
+        items.push({
+            title: 'Tu rabino / baal koreh (recomendado)',
+            body: 'Pídele una grabación de tu Aliá en la melodía de tu comunidad. Súbela con el botón de archivo.'
+        });
+
+        if (parasha) {
+            const mechonUrl = ChantedRecordings.mechonMamreChapterUrl(parasha.ref);
+            if (mechonUrl) {
+                items.push({
+                    title: 'Mechon Mamre — hebreo hablado (capítulo)',
+                    body: 'Pronunciación clara, sin cantileo melódico. Útil para oír el texto; no sustituye el leyning.',
+                    href: mechonUrl,
+                    actionLabel: 'Usar esta URL',
+                    onUseUrl: mechonUrl
+                });
+                items.push({
+                    title: 'Índice Mechon Mamre (todos los capítulos)',
+                    href: ChantedRecordings.externalSources.mechonMamre.indexUrl
+                });
+            }
+        }
+
+        items.push({
+            title: ChantedRecordings.externalSources.sephardicHazzanut.name,
+            body: ChantedRecordings.externalSources.sephardicHazzanut.description + ' (sitio HTTP: descarga el MP3 y súbelo; no se puede embeber desde HTTPS).',
+            href: ChantedRecordings.sephardicBookPage(bookKey || 'bereshit')
+        });
+
+        ChantedRecordings.externalSources.tips.forEach(tip => {
+            items.push({ title: 'Nota', body: tip });
+        });
+
+        if (intro) {
+            intro.textContent = parasha
+                ? `Fuentes para practicar «${parasha.name}» (Aliá ${this.state.currentAliyah === 'maftir' ? 'Maftír' : this.state.currentAliyah}):`
+                : 'Fuentes útiles para practicar el texto cantado:';
+        }
+
+        items.forEach(item => {
+            const li = document.createElement('li');
+            const title = document.createElement('strong');
+            title.textContent = item.title;
+            li.appendChild(title);
+            if (item.body) {
+                const p = document.createElement('p');
+                p.textContent = item.body;
+                li.appendChild(p);
+            }
+            if (item.href) {
+                const a = document.createElement('a');
+                a.href = item.href;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.textContent = 'Abrir fuente';
+                li.appendChild(a);
+            }
+            if (item.onUseUrl) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn-secondary';
+                btn.textContent = item.actionLabel || 'Usar URL';
+                btn.addEventListener('click', async () => {
+                    document.getElementById('inputRecordingUrl').value = item.onUseUrl;
+                    await this.handleRecordingUrlSave(item.onUseUrl);
+                });
+                li.appendChild(btn);
+            }
+            list.appendChild(li);
+        });
+    },
+
+    async playChantedRecording({ resume = true } = {}) {
+        if (!this.state.currentRecording) {
+            this.showNotification('No hay grabación para esta Aliá.');
+            return;
+        }
+
+        this.revealPlayerDock();
+        const parasha = this.state.currentParasha;
+        const aliyah = this.state.currentAliyah;
+        document.getElementById('playerTrackTitle').textContent =
+            `Grabación cantada: ${parasha.name} - Aliá ${aliyah === 'maftir' ? 'Maftír' : aliyah}`;
+
+        try {
+            let audio = ChantedRecordings._audioEl;
+            const canResume = resume && audio && audio.src && !audio.ended && audio.paused && audio.currentTime > 0;
+
+            if (!canResume) {
+                // Stop synthetic tropes / speech without wiping recording seek position prematurely
+                if (this.state._chantTimeouts) {
+                    this.state._chantTimeouts.forEach(t => clearTimeout(t));
+                    this.state._chantTimeouts = [];
+                }
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                audio = await ChantedRecordings.prepare(this.state.currentRecording);
+            }
+
+            audio.playbackRate = this.state.playbackSpeed;
+            this.state.isPlaying = true;
+            this.updatePlayerButtons(true);
+
+            const total = Number.isFinite(audio.duration) ? audio.duration : 0;
+            const mm = String(Math.floor(total / 60)).padStart(2, '0');
+            const ss = String(Math.floor(total % 60)).padStart(2, '0');
+            document.getElementById('playerTotalTime').textContent = `${mm}:${ss}`;
+
+            audio.ontimeupdate = () => {
+                if (!audio.duration) return;
+                const pct = (audio.currentTime / audio.duration) * 100;
+                document.getElementById('playerProgressBarFill').style.width = `${pct}%`;
+                const cur = audio.currentTime;
+                const cmm = String(Math.floor(cur / 60)).padStart(2, '0');
+                const css = String(Math.floor(cur % 60)).padStart(2, '0');
+                document.getElementById('playerCurrentTime').textContent = `${cmm}:${css}`;
+            };
+
+            audio.onended = () => {
+                if (this.state.isLooping) {
+                    audio.currentTime = 0;
+                    audio.play().catch(() => this.stopAudio());
+                    return;
+                }
+                this.state.isPlaying = false;
+                this.updatePlayerButtons(false);
+                document.getElementById('playerProgressBarFill').style.width = '100%';
+            };
+
+            await audio.play();
+        } catch (err) {
+            console.error(err);
+            this.state.isPlaying = false;
+            this.updatePlayerButtons(false);
+            this.showNotification(err.message || 'No se pudo reproducir la grabación.');
+        }
     },
 
     enhanceKeyboardAccess() {
@@ -1177,6 +1490,7 @@ const App = {
             leyning: this.leyningDatabase[parashaId] || this.generateFallbackLeyning(parasha),
             hebrewDate: hebrewDateStr
         };
+        this.refreshRecordingPanel();
         this.loadAliyahText();
     },
 
@@ -1210,6 +1524,7 @@ const App = {
         this.stopAudio();
         const parasha = this.state.currentParasha;
         const aliyah = this.state.currentAliyah;
+        this.refreshRecordingPanel();
 
         const boardTitle = document.getElementById('readingBoardTitle');
         boardTitle.innerHTML = `Estudio Paralelo: ${parasha.name} - Aliá ${aliyah === 'maftir' ? 'Maftír' : aliyah}`;
@@ -1614,6 +1929,10 @@ const App = {
 
     // Start playing from a specific verse index
     playFromVerse(vIdx) {
+        if (this.state.audioMode === 'recording') {
+            this.playChantedRecording({ resume: false });
+            return;
+        }
         this.stopAudio();
         this.state.playIndex = vIdx;
         this.revealPlayerDock();
@@ -1635,14 +1954,22 @@ const App = {
     togglePlayback() {
         if (this.state.isPlaying) {
             this.pauseAudio();
-        } else {
-            this.revealPlayerDock();
-            this.startChantingQueue();
+            return;
         }
+        if (this.state.audioMode === 'recording') {
+            this.playChantedRecording();
+            return;
+        }
+        this.revealPlayerDock();
+        this.startChantingQueue();
     },
 
     // Start chanting loop
     startChantingQueue() {
+        if (this.state.audioMode === 'recording') {
+            this.playChantedRecording();
+            return;
+        }
         this.state.isPlaying = true;
         this.updatePlayerButtons(true);
         this.chantNextTropeGroup();
@@ -1779,6 +2106,9 @@ const App = {
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
+        if (window.ChantedRecordings) {
+            ChantedRecordings.pause();
+        }
         // Clean any active karaoke highlights
         document.querySelectorAll('.heb-word').forEach(w => w.classList.remove('chanting-word'));
     },
@@ -1786,6 +2116,9 @@ const App = {
     // Fully stops audio and resets trackers
     stopAudio() {
         this.pauseAudio();
+        if (window.ChantedRecordings) {
+            ChantedRecordings.stop();
+        }
         this.state.playIndex = 0;
         document.getElementById('playerProgressBarFill').style.width = '0%';
         document.getElementById('playerCurrentTime').textContent = '00:00';
@@ -1822,6 +2155,11 @@ const App = {
 
         this.state.playbackSpeed = speeds[nextIdx];
         document.getElementById('playerSpeedBtn').textContent = `${this.state.playbackSpeed}x`;
+
+        if (this.state.audioMode === 'recording' && ChantedRecordings._audioEl) {
+            ChantedRecordings._audioEl.playbackRate = this.state.playbackSpeed;
+            return;
+        }
         
         // If playing, pause and resume to apply the new speed immediately
         if (this.state.isPlaying) {
@@ -1847,13 +2185,21 @@ const App = {
 
     // Progress bar scrubbing click
     scrubPlayer(e) {
-        if (this.state.playQueue.length === 0) return;
-        
         const rect = e.currentTarget.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const width = rect.width;
-        const pct = clickX / width;
+        const pct = Math.max(0, Math.min(1, clickX / width));
 
+        if (this.state.audioMode === 'recording' && ChantedRecordings._audioEl && ChantedRecordings._audioEl.duration) {
+            const audio = ChantedRecordings._audioEl;
+            audio.currentTime = pct * audio.duration;
+            if (!this.state.isPlaying) {
+                this.playChantedRecording({ resume: true });
+            }
+            return;
+        }
+
+        if (this.state.playQueue.length === 0) return;
         const nextIndex = Math.floor(pct * this.state.playQueue.length);
         this.playFromVerse(nextIndex);
     },

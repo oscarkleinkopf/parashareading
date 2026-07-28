@@ -12,7 +12,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "autoplay=(self), microphone=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://www.hebcal.com https://www.sefaria.org; img-src 'self' data:; media-src 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://www.hebcal.com https://www.sefaria.org https://www.mechon-mamre.org; img-src 'self' data:; media-src 'self' blob: https://www.mechon-mamre.org https:"
 
 # Aggressive caching for static assets
 [[headers]]
