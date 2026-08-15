@@ -23,9 +23,11 @@
     <!-- PWA y Soporte Móvil -->
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Cantoral de Torá">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- Hojas de Estilo -->
     <link rel="stylesheet" href="styles.css?v=3.1">
@@ -52,6 +54,7 @@
                 </div>
             </div>
             <div class="header-actions" style="display: flex; gap: 8px;">
+                <button class="btn-secondary" id="btnAuthToggle" title="Ingresar / Cuenta" style="padding: 8px 14px; font-size: 13px;">Ingresar</button>
                 <button class="btn-icon" id="btnShareApp" title="Compartir Lectura (WhatsApp / Clipboard)">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z"/>
@@ -364,6 +367,21 @@
             </div>
         </main>
 
+        <!-- Grabaciones reales de la comunidad (voz de rabinos) + aporte -->
+        <section class="glass-panel animate-fade-in hidden" id="sectionRecordings" aria-label="Grabaciones de la comunidad">
+            <!-- Contenido inyectado por recordings.js -->
+        </section>
+
+        <!-- Cola de moderación (solo administradores) -->
+        <section class="glass-panel animate-fade-in hidden" id="sectionModeration" aria-label="Moderación de grabaciones">
+            <!-- Contenido inyectado por recordings.js -->
+        </section>
+
+        <!-- Panel de autenticación (login / registro de rabinos) -->
+        <div id="authPanel" class="auth-overlay hidden" role="dialog" aria-modal="true" aria-label="Ingresar o registrarse">
+            <!-- Contenido inyectado por recordings.js -->
+        </div>
+
         <!-- Glosario Interactiva de Tropos Ashkenazi -->
         <section class="glass-panel animate-fade-in hidden" id="sectionTropeGlossary">
             <h3 class="section-title">
@@ -449,6 +467,12 @@
     
     <!-- Script Principal de la Lógica de la Aplicación -->
     <script src="app.js?v=3.1"></script>
+
+    <!-- SDK de Netlify Identity empaquetado (expone window.NetlifyIdentity) -->
+    <script type="module" src="assets/netlify-identity.js?v=3.1"></script>
+
+    <!-- Grabaciones de la comunidad: auth, aporte, reproducción y moderación -->
+    <script src="recordings.js?v=3.1"></script>
     
     <!-- Registro de Service Worker PWA -->
     <script>

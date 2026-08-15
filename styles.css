@@ -1118,6 +1118,48 @@ footer a:hover {
     display: flex !important;
 }
 
+/* ---------- Grabaciones de la comunidad / autenticación ---------- */
+.auth-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 4, 10, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+}
+
+.auth-card {
+    width: 100%;
+    animation: fadeIn 0.2s ease;
+}
+
+.auth-label {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+#recToggleBtn.recording {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+    animation: pulse-rec 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-rec {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.recordings-list .recording-item audio {
+    max-width: 220px;
+}
+
 .loader {
     width: 40px;
     height: 40px;

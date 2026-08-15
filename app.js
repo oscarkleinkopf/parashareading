@@ -1555,6 +1555,15 @@ const App = {
         if (this.state.viewMode === 'verse') {
             this.renderFlashcard();
         }
+
+        // Notify the recordings module (community/real audio) that an aliyah is on screen.
+        document.dispatchEvent(new CustomEvent('cantoral:aliyah-rendered', {
+            detail: {
+                parashaId: this.state.currentParasha ? this.state.currentParasha.id : null,
+                aliyah: this.state.currentAliyah,
+                verseCount: this.state.currentVerseCount
+            }
+        }));
     },
 
     // Build a single interactive Hebrew word span (no per-word listener — see delegation).
