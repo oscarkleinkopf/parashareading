@@ -5,6 +5,10 @@
 const TropeSynthesizer = {
     audioCtx: null,
     synagogueReverb: true,
+    masterGain: null,
+    limiter: null,
+    // Currently scheduled/playing oscillators so playback can be silenced on stop/pause
+    activeVoices: [],
 
     // Ashkenazi Torah Trope Scale (Based on traditional Jewish cantillation modes - resembling Dorian / Major Pentatonic shifts)
     // Root pitch G3 = 196 Hz (comfortable baritone/cantor register)
@@ -207,7 +211,23 @@ const TropeSynthesizer = {
     init() {
         if (!this.audioCtx) {
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
+
+            // Master bus: all voices -> masterGain -> limiter -> destination.
+            // The limiter (compressor acting as a brick-wall) prevents clipping when
+            // several tropes and the reverb tail overlap.
+            this.masterGain = this.audioCtx.createGain();
+            this.masterGain.gain.setValueAtTime(0.9, this.audioCtx.currentTime);
+
+            this.limiter = this.audioCtx.createDynamicsCompressor();
+            this.limiter.threshold.setValueAtTime(-6, this.audioCtx.currentTime);
+            this.limiter.knee.setValueAtTime(6, this.audioCtx.currentTime);
+            this.limiter.ratio.setValueAtTime(12, this.audioCtx.currentTime);
+            this.limiter.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
+            this.limiter.release.setValueAtTime(0.25, this.audioCtx.currentTime);
+
+            this.masterGain.connect(this.limiter);
+            this.limiter.connect(this.audioCtx.destination);
+
             // Create shared reverb/delay nodes once
             this.reverbNode = this.audioCtx.createDelay(1.0);
             this.reverbFeedback = this.audioCtx.createGain();
@@ -219,12 +239,51 @@ const TropeSynthesizer = {
             this.reverbNode.connect(this.reverbFeedback);
             this.reverbFeedback.connect(this.reverbNode);
             
-            // Connect reverb output to destination
-            this.reverbNode.connect(this.audioCtx.destination);
+            // Route reverb tail through the master bus (not straight to destination)
+            this.reverbNode.connect(this.masterGain);
         }
         if (this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
         }
+    },
+
+    // Unlock/resume the AudioContext from a user gesture (required on iOS/Safari).
+    // Safe to call repeatedly; resolves once the context is running.
+    unlock() {
+        try {
+            this.init();
+        } catch (e) {
+            return Promise.resolve(false);
+        }
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            return this.audioCtx.resume().then(() => true).catch(() => false);
+        }
+        return Promise.resolve(true);
+    },
+
+    // Total duration of a trope motif in milliseconds (unscaled by speed).
+    // Used by the player to schedule word-by-word highlighting against real audio length.
+    getTropeDurationMs(tropeKey) {
+        const trope = this.tropes[tropeKey];
+        if (!trope) return 0;
+        return trope.motif.reduce((sum, note) => sum + note[1], 0);
+    },
+
+    // Immediately silence every scheduled/playing oscillator.
+    stopAll() {
+        if (!this.audioCtx) return;
+        const now = this.audioCtx.currentTime;
+        this.activeVoices.forEach(node => {
+            try {
+                node.stop(now);
+            } catch (e) {
+                // Already stopped or never started — ignore.
+            }
+            try {
+                node.disconnect();
+            } catch (e) { /* ignore */ }
+        });
+        this.activeVoices = [];
     },
 
     // Play a single trope motif
@@ -294,8 +353,8 @@ const TropeSynthesizer = {
         
         filterNode.connect(gainNode);
 
-        // Connect main output and delay lines
-        gainNode.connect(this.audioCtx.destination);
+        // Connect through the master bus (masterGain -> limiter -> destination)
+        gainNode.connect(this.masterGain);
         if (this.synagogueReverb && this.reverbNode) {
             gainNode.connect(this.reverbNode);
         }
@@ -308,6 +367,12 @@ const TropeSynthesizer = {
         lfo.stop(startTime + duration);
         osc1.stop(startTime + duration);
         osc2.stop(startTime + duration);
+
+        // Track voices so stopAll() can silence them; clean up when they end.
+        this.activeVoices.push(osc1, osc2, lfo);
+        osc1.onended = () => {
+            this.activeVoices = this.activeVoices.filter(v => v !== osc1 && v !== osc2 && v !== lfo);
+        };
     }
 };
 

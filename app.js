@@ -685,12 +685,36 @@ const App = {
         this.renderTropeGlossary();
         this.handleHashChange(); // Enrutar hash inicial si existe
         
-        // Preload speech synthesis voices (fixes Chrome lazy loading)
-        if (window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = () => {
-                window.speechSynthesis.getVoices();
-            };
+        // Preload and cache speech synthesis voices (fixes Chrome/Safari lazy loading)
+        if (window.speechSynthesis) {
+            this.state._voices = window.speechSynthesis.getVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    this.state._voices = window.speechSynthesis.getVoices();
+                };
+            }
         }
+    },
+
+    // Pick the best available voice for a BCP-47 language, preferring an exact match.
+    getVoiceForLang(lang) {
+        const voices = (this.state._voices && this.state._voices.length)
+            ? this.state._voices
+            : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
+        if (!voices || voices.length === 0) return null;
+
+        const lower = lang.toLowerCase();
+        const base = lower.split('-')[0];
+        // 1) exact locale (e.g. he-IL), 2) same language (he*), 3) name heuristics
+        return voices.find(v => v.lang && v.lang.toLowerCase() === lower)
+            || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(base))
+            || voices.find(v => {
+                const n = v.name.toLowerCase();
+                if (base === 'he') return n.includes('hebrew') || n.includes('ivrit');
+                if (base === 'es') return n.includes('spanish') || n.includes('castilian') || n.includes('español');
+                return false;
+            })
+            || null;
     },
 
     // Populate drop down with 54 parashot categories
@@ -725,6 +749,22 @@ const App = {
         // View Mode Tab switching
         document.getElementById('viewTabParallel').addEventListener('click', () => this.switchViewMode('parallel'));
         document.getElementById('viewTabVerse').addEventListener('click', () => this.switchViewMode('verse'));
+
+        // Delegated clicks for verse words/rows and flashcard words (one listener each,
+        // instead of one per rendered word — much lighter for long aliyot).
+        const verseContainer = document.getElementById('verseContainer');
+        if (verseContainer) verseContainer.addEventListener('click', (e) => this.handleVerseContainerClick(e));
+        const flashcardHebrew = document.getElementById('flashcardHebrew');
+        if (flashcardHebrew) flashcardHebrew.addEventListener('click', (e) => this.handleHebWordClick(e));
+
+        // Unlock/resume the AudioContext on the first user gesture (iOS/Safari requirement).
+        const unlockAudio = () => {
+            if (window.TropeSynthesizer && TropeSynthesizer.unlock) TropeSynthesizer.unlock();
+            document.removeEventListener('pointerdown', unlockAudio);
+            document.removeEventListener('keydown', unlockAudio);
+        };
+        document.addEventListener('pointerdown', unlockAudio);
+        document.addEventListener('keydown', unlockAudio);
 
         // Flashcard controls
         document.getElementById('flashcardBtnPrev').addEventListener('click', () => this.goToPrevVerse());
@@ -1472,32 +1512,11 @@ const App = {
             colHeb.style.fontSize = `${this.state.fontSizeHebrew}px`;
             colHeb.style.lineHeight = `${this.state.fontSizeHebrew * 1.7}px`;
 
-            // Split into words to wrap and make interactive
+            // Split into words to wrap and make interactive.
+            // Clicks are handled via event delegation on #verseContainer (see setupEventListeners).
             const words = hebText.split(/\s+/);
             words.forEach((word, wIdx) => {
-                const wordSpan = document.createElement('span');
-                wordSpan.className = 'heb-word';
-                wordSpan.id = `v-${i}-w-${wIdx}`;
-                wordSpan.textContent = word + ' ';
-
-                // Detect trope in word
-                const tropeKey = this.detectTropeInWord(word);
-                if (tropeKey) {
-                    const trope = TropeSynthesizer.tropes[tropeKey];
-                    wordSpan.setAttribute('data-trope-key', tropeKey);
-                    wordSpan.setAttribute('data-trope-name', trope.name);
-                    
-                    // Click plays the trope
-                    wordSpan.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        TropeSynthesizer.playTrope(tropeKey, this.state.playbackSpeed);
-                        this.showTropeDetails(tropeKey);
-                    });
-                } else {
-                    wordSpan.setAttribute('data-trope-name', 'Palabra');
-                }
-
-                colHeb.appendChild(wordSpan);
+                colHeb.appendChild(this.buildHebWordSpan(word, `v-${i}-w-${wIdx}`));
             });
             row.appendChild(colHeb);
 
@@ -1528,11 +1547,7 @@ const App = {
             actions.appendChild(markButton);
             row.appendChild(actions);
 
-            // Click whole row highlights it in player
-            row.addEventListener('click', () => {
-                this.playFromVerse(i);
-            });
-
+            // Row/word/mark clicks are handled via delegation on #verseContainer.
             container.appendChild(row);
         }
 
@@ -1542,74 +1557,158 @@ const App = {
         }
     },
 
-    // Trope detection using unicode matchers
-    detectTropeInWord(word) {
-        const unicodeTropeMap = {
-            '\u0591': 'etnachta',
-            '\u0594': 'zakef_katon',
-            '\u0595': 'zakef_gadol',
-            '\u0596': 'tipcha',
-            '\u0597': 'revia',
-            '\u0599': 'pashta',
-            '\u059B': 'tevir',
-            '\u059C': 'geresh',
-            '\u059E': 'gershayim',
-            '\u05A0': 'telisha_gedola',
-            '\u05A1': 'pazer',
-            '\u05A3': 'munach',
-            '\u05A4': 'mapach',
-            '\u05A5': 'mercha',
-            '\u05A7': 'darga',
-            '\u05A8': 'kadma',
-            '\u05A9': 'telisha_ketana',
-            '\u05C3': 'sof_pasuk'
-        };
+    // Build a single interactive Hebrew word span (no per-word listener — see delegation).
+    buildHebWordSpan(word, wordId) {
+        const span = document.createElement('span');
+        span.className = 'heb-word';
+        span.id = wordId;
+        span.textContent = word + ' ';
 
-        for (const char in unicodeTropeMap) {
-            if (word.includes(char)) {
-                return unicodeTropeMap[char];
+        const tropeKey = this.detectTropeInWord(word);
+        if (tropeKey && TropeSynthesizer.tropes[tropeKey]) {
+            span.setAttribute('data-trope-key', tropeKey);
+            span.setAttribute('data-trope-name', TropeSynthesizer.tropes[tropeKey].name);
+        } else {
+            span.setAttribute('data-trope-name', 'Palabra');
+        }
+        return span;
+    },
+
+    // Delegated handler for the parallel-view verse list.
+    handleVerseContainerClick(e) {
+        const wordEl = e.target.closest('.heb-word[data-trope-key]');
+        if (wordEl) {
+            const key = wordEl.getAttribute('data-trope-key');
+            TropeSynthesizer.playTrope(key, this.state.playbackSpeed);
+            this.showTropeDetails(key);
+            return;
+        }
+        // The mark button manages its own click; ignore it here.
+        if (e.target.closest('.verse-complete-btn')) return;
+
+        const row = e.target.closest('.verse-row');
+        if (row) {
+            const idx = parseInt(row.dataset.verseIndex, 10);
+            if (!isNaN(idx)) this.playFromVerse(idx);
+        }
+    },
+
+    // Delegated handler for a Hebrew word click (used by the flashcard view).
+    handleHebWordClick(e) {
+        const wordEl = e.target.closest('.heb-word[data-trope-key]');
+        if (!wordEl) return;
+        const key = wordEl.getAttribute('data-trope-key');
+        TropeSynthesizer.playTrope(key, this.state.playbackSpeed);
+        this.showTropeDetails(key);
+    },
+
+    // Unicode -> trope-key map for cantillation marks (ta'amim)
+    unicodeTropeMap: {
+        '\u0591': 'etnachta',
+        '\u0593': 'shalshelet',
+        '\u0594': 'zakef_katon',
+        '\u0595': 'zakef_gadol',
+        '\u0596': 'tipcha',
+        '\u0597': 'revia',
+        '\u0599': 'pashta',
+        '\u059B': 'tevir',
+        '\u059C': 'geresh',
+        '\u059E': 'gershayim',
+        '\u05A0': 'telisha_gedola',
+        '\u05A1': 'pazer',
+        '\u05A3': 'munach',
+        '\u05A4': 'mapach',
+        '\u05A5': 'mercha',
+        '\u05A7': 'darga',
+        '\u05A8': 'kadma',
+        '\u05A9': 'telisha_ketana',
+        '\u05C3': 'sof_pasuk'
+    },
+
+    // Detect every trope present in a word, in order of appearance.
+    // A single word can carry more than one ta'am (e.g. a conjunctive + disjunctive).
+    detectTropesInWord(word) {
+        const found = [];
+        for (const char of word) {
+            const key = this.unicodeTropeMap[char];
+            if (key && !found.includes(key)) {
+                found.push(key);
             }
         }
-        return null;
+        return found;
     },
+
+    // Detect the primary (first) trope in a word — used for the clickable representative.
+    detectTropeInWord(word) {
+        const tropes = this.detectTropesInWord(word);
+        return tropes.length ? tropes[0] : null;
+    },
+
+    // Breathing pause (ms) inserted between verses during chanting
+    BREATH_MS: 600,
 
     // Parse Hebrew text to map all word-level tropes in the Aliyah to prepare the audio schedule
     setupPlaybackQueue(hebrewList) {
         this.state.playQueue = [];
-        
+
         hebrewList.forEach((verseText, vIdx) => {
             const words = verseText.split(/\s+/);
             const verseTropes = [];
 
             words.forEach((word, wIdx) => {
-                const tropeKey = this.detectTropeInWord(word);
-                if (tropeKey) {
+                // A word may carry multiple ta'amim — chant each in order.
+                const tropeKeys = this.detectTropesInWord(word);
+                tropeKeys.forEach(tropeKey => {
                     verseTropes.push({
                         tropeKey: tropeKey,
-                        wordId: `v-${vIdx}-w-${wIdx}`
+                        wordId: `v-${vIdx}-w-${wIdx}`,
+                        durationMs: TropeSynthesizer.getTropeDurationMs(tropeKey)
                     });
-                }
+                });
             });
 
             // If a verse has no trope, we inject a short breathing space
             if (verseTropes.length === 0) {
                 verseTropes.push({
                     tropeKey: 'munach',
-                    wordId: null
+                    wordId: null,
+                    durationMs: TropeSynthesizer.getTropeDurationMs('munach')
                 });
             }
 
+            const verseDurationMs = verseTropes.reduce((sum, t) => sum + t.durationMs, 0);
+
             this.state.playQueue.push({
                 verseIndex: vIdx,
-                items: verseTropes
+                items: verseTropes,
+                durationMs: verseDurationMs
             });
         });
 
-        // Set duration estimate (approx 2.5 seconds per verse)
-        const estSec = hebrewList.length * 2.5;
-        const mm = String(Math.floor(estSec / 60)).padStart(2, '0');
-        const ss = String(Math.floor(estSec % 60)).padStart(2, '0');
-        document.getElementById('playerTotalTime').textContent = `${mm}:${ss}`;
+        // Real total duration = sum of every motif + one breath per verse (unscaled by speed)
+        this.state.playTotalMs = this.state.playQueue.reduce(
+            (sum, v) => sum + v.durationMs + this.BREATH_MS, 0
+        );
+        document.getElementById('playerTotalTime').textContent =
+            this.formatClock(this.state.playTotalMs / this.state.playbackSpeed);
+    },
+
+    // Format milliseconds as mm:ss
+    formatClock(ms) {
+        const totalSec = Math.max(0, Math.floor(ms / 1000));
+        const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+        const ss = String(Math.floor(totalSec % 60)).padStart(2, '0');
+        return `${mm}:${ss}`;
+    },
+
+    // Cumulative unscaled duration (ms) from the start of the aliyah up to (but not
+    // including) a given verse index — used to drive the progress bar and clock.
+    elapsedMsBeforeVerse(verseIndex) {
+        let sum = 0;
+        for (let i = 0; i < verseIndex && i < this.state.playQueue.length; i++) {
+            sum += this.state.playQueue[i].durationMs + this.BREATH_MS;
+        }
+        return sum;
     },
 
     // Start playing from a specific verse index
@@ -1681,15 +1780,10 @@ const App = {
             activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        // Update progress bar
-        const pct = (idx / queue.length) * 100;
-        document.getElementById('playerProgressBarFill').style.width = `${pct}%`;
-        
-        // Update current time display (simulate duration)
-        const estSec = idx * 2.5;
-        const mm = String(Math.floor(estSec / 60)).padStart(2, '0');
-        const ss = String(Math.floor(estSec % 60)).padStart(2, '0');
-        document.getElementById('playerCurrentTime').textContent = `${mm}:${ss}`;
+        // Progress/clock are driven by the real cumulative motif duration of the aliyah.
+        const totalMs = this.state.playTotalMs || 1;
+        const elapsedBefore = this.elapsedMsBeforeVerse(idx);
+        this.updatePlaybackProgress(elapsedBefore, totalMs);
 
         const item = queue[idx];
         const playItems = item.items;
@@ -1699,63 +1793,67 @@ const App = {
         if (!this.state._chantTimeouts) this.state._chantTimeouts = [];
         let durationSum = 0;
         for (let i = 0; i < playItems.length; i++) {
-            const { tropeKey, wordId } = playItems[i];
-            const tropeObj = TropeSynthesizer.tropes[tropeKey];
-            
+            const { tropeKey, wordId, durationMs } = playItems[i];
+            const motifDuration = durationMs || TropeSynthesizer.getTropeDurationMs(tropeKey);
+
             // Play trope tone
             const delay = durationSum / this.state.playbackSpeed;
-            
+            const progressAt = elapsedBefore + durationSum;
+
             const tid = setTimeout(() => {
                 if (this.state.isPlaying) {
                     TropeSynthesizer.playTrope(tropeKey, this.state.playbackSpeed);
-                    
+
+                    // Advance progress/clock word-by-word for a smooth karaoke feel
+                    this.updatePlaybackProgress(progressAt, totalMs);
+
                     // Highlight the specific word active (karaoke style!)
                     if (wordId) {
-                        // Remove highlight from any other words first
-                        document.querySelectorAll('.heb-word').forEach(w => w.classList.remove('chanting-word'));
-                        
                         const elId = this.state.viewMode === 'verse' ? `f-${wordId}` : wordId;
                         const wordEl = document.getElementById(elId);
-                        if (wordEl) {
-                            wordEl.classList.add('chanting-word');
-                            
-                            // Speak the word if voice is enabled
-                            if (this.state.audioMode !== 'trope') {
-                                this.speakWordForElement(wordEl);
-                            }
+                        this.setChantingWord(wordEl);
+
+                        // Speak the word if voice is enabled
+                        if (wordEl && this.state.audioMode !== 'trope') {
+                            this.speakWordForElement(wordEl);
                         }
                     }
                 }
             }, delay);
             this.state._chantTimeouts.push(tid);
 
-            // sum durations to offset next trope
-            const motifDuration = tropeObj.motif.reduce((sum, n) => sum + n[1], 0);
-
-            // Schedule highlight removal when note stops
-            if (wordId) {
-                const hid = setTimeout(() => {
-                    const elId = this.state.viewMode === 'verse' ? `f-${wordId}` : wordId;
-                    const wordEl = document.getElementById(elId);
-                    if (wordEl) {
-                        wordEl.classList.remove('chanting-word');
-                    }
-                }, delay + (motifDuration / this.state.playbackSpeed));
-                this.state._chantTimeouts.push(hid);
-            }
-
             durationSum += motifDuration;
         }
 
         // Schedule next verse after all tropes finished playing (+ short breath space)
-        const nextVerseDelay = (durationSum + 600) / this.state.playbackSpeed;
-        
+        const nextVerseDelay = (durationSum + this.BREATH_MS) / this.state.playbackSpeed;
+
         const nextTid = setTimeout(() => {
             this.state.playIndex++;
             this.chantNextTropeGroup();
         }, nextVerseDelay);
         this.state._chantTimeouts.push(nextTid);
         this.state.playTimeout = nextTid;
+    },
+
+    // Update the progress bar fill and current-time clock from elapsed/total ms.
+    updatePlaybackProgress(elapsedMs, totalMs) {
+        const pct = Math.min(100, (elapsedMs / totalMs) * 100);
+        const fill = document.getElementById('playerProgressBarFill');
+        if (fill) fill.style.width = `${pct}%`;
+        const clock = document.getElementById('playerCurrentTime');
+        if (clock) clock.textContent = this.formatClock(elapsedMs / this.state.playbackSpeed);
+    },
+
+    // Move the "chanting" highlight to a single word without scanning the whole DOM.
+    setChantingWord(wordEl) {
+        if (this.state._activeWordEl && this.state._activeWordEl !== wordEl) {
+            this.state._activeWordEl.classList.remove('chanting-word');
+        }
+        if (wordEl) {
+            wordEl.classList.add('chanting-word');
+        }
+        this.state._activeWordEl = wordEl || null;
     },
 
     // Pause audio playback
@@ -1779,8 +1877,13 @@ const App = {
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
+        // Silence any oscillators already scheduled in the Web Audio graph
+        if (window.TropeSynthesizer && TropeSynthesizer.stopAll) {
+            TropeSynthesizer.stopAll();
+        }
         // Clean any active karaoke highlights
-        document.querySelectorAll('.heb-word').forEach(w => w.classList.remove('chanting-word'));
+        this.setChantingWord(null);
+        document.querySelectorAll('.heb-word.chanting-word').forEach(w => w.classList.remove('chanting-word'));
     },
 
     // Fully stops audio and resets trackers
@@ -2095,29 +2198,13 @@ const App = {
         markBtn.classList.toggle('completed', isDone);
         markBtn.setAttribute('aria-pressed', isDone ? 'true' : 'false');
 
-        // Render Hebrew (RTL, word-by-word interactive)
+        // Render Hebrew (RTL, word-by-word interactive).
+        // Clicks are handled via delegation on #flashcardHebrew (see setupEventListeners).
         const hebBox = document.getElementById('flashcardHebrew');
         hebBox.innerHTML = '';
         const words = hebList[index].split(/\s+/);
         words.forEach((word, wIdx) => {
-            const wordSpan = document.createElement('span');
-            wordSpan.className = 'heb-word';
-            wordSpan.id = `f-v-${index}-w-${wIdx}`; // Unique flashcard word ID
-            wordSpan.textContent = word + ' ';
-
-            const tropeKey = this.detectTropeInWord(word);
-            if (tropeKey) {
-                wordSpan.setAttribute('data-trope-key', tropeKey);
-                wordSpan.setAttribute('data-trope-name', TropeSynthesizer.tropes[tropeKey].name);
-                wordSpan.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    TropeSynthesizer.playTrope(tropeKey, this.state.playbackSpeed);
-                    this.showTropeDetails(tropeKey);
-                });
-            } else {
-                wordSpan.setAttribute('data-trope-name', 'Palabra');
-            }
-            hebBox.appendChild(wordSpan);
+            hebBox.appendChild(this.buildHebWordSpan(word, `f-v-${index}-w-${wIdx}`));
         });
 
         // Update phonetics and translation
@@ -2286,25 +2373,19 @@ const App = {
     speakWord(text, lang) {
         if (!window.speechSynthesis) return;
 
-        // Cancel previous words to keep sync
-        window.speechSynthesis.cancel();
-
+        // Note: we intentionally do NOT cancel() here. Cancelling on every word cut
+        // pronunciation short and fought the trope timing. Speech is cleared instead on
+        // pause/stop (see pauseAudio) and when a word is spoken on its own.
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = lang;
-        
+
         // Scale speed with playbackSpeed (voice is usually slightly faster than trope notes, so we multiply by 1.05)
         utterance.rate = this.state.playbackSpeed * 1.05;
         utterance.volume = 0.95;
 
         // Find best match voice (crucial for iOS and desktop Chrome)
-        const voices = window.speechSynthesis.getVoices();
-        if (lang.startsWith('he')) {
-            const heVoice = voices.find(v => v.lang.startsWith('he') || v.name.toLowerCase().includes('hebrew'));
-            if (heVoice) utterance.voice = heVoice;
-        } else {
-            const esVoice = voices.find(v => v.lang.startsWith('es') || v.name.toLowerCase().includes('spanish') || v.name.toLowerCase().includes('castilian'));
-            if (esVoice) utterance.voice = esVoice;
-        }
+        const voice = this.getVoiceForLang(lang);
+        if (voice) utterance.voice = voice;
 
         window.speechSynthesis.speak(utterance);
     }
