@@ -1,0 +1,25 @@
+{
+  "name": "cantoral-de-tora",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cantoral de Torá — PWA para aprender a leer y cantar la parashá (melodía sincronizada + grabaciones de rabinos).",
+  "scripts": {
+    "build": "esbuild frontend/identity-entry.mjs --bundle --format=esm --outfile=assets/netlify-identity.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "netlify database migrations apply"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.13",
+    "@netlify/database": "^1.1.0",
+    "@netlify/functions": "^5.3.0",
+    "@netlify/identity": "^1.2.0",
+    "drizzle-orm": "^1.0.0-beta.22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

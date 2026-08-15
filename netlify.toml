@@ -1,7 +1,9 @@
 # Cantoral de Torá — Netlify Configuration
 
 [build]
-  # No build command needed — pure static site
+  # Empaqueta el SDK de Netlify Identity para el navegador (assets/netlify-identity.js).
+  # Las Functions (netlify/functions) y la base de datos se aprovisionan automáticamente.
+  command = "npm run build"
   publish = "."
 
 # Security & performance headers for all pages
@@ -12,7 +14,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "autoplay=(self), microphone=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://www.hebcal.com https://www.sefaria.org; img-src 'self' data:; media-src 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://www.hebcal.com https://www.sefaria.org; img-src 'self' data:; media-src 'self' blob:"
 
 # Aggressive caching for static assets
 [[headers]]
