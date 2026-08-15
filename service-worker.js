@@ -1,12 +1,16 @@
-const CACHE_NAME = 'cantoral-tora-shell-v3';
-const API_CACHE_NAME = 'cantoral-tora-api-v3';
+const CACHE_NAME = 'cantoral-tora-shell-v4';
+const API_CACHE_NAME = 'cantoral-tora-api-v4';
 
+// Precache the exact (versioned) URLs the page requests, so the very first offline
+// load works and there is no bare-vs-versioned mismatch.
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
-  'styles.css',
-  'app.js',
-  'trope_synthesizer.js',
+  'styles.css?v=3.1',
+  'app.js?v=3.1',
+  'trope_synthesizer.js?v=3.1',
+  'recordings.js?v=3.1',
+  'assets/netlify-identity.js?v=3.1',
   'manifest.json',
   'icon.png'
 ];
@@ -14,9 +18,10 @@ const ASSETS_TO_CACHE = [
 // Install Event: cache app shell assets
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      // Tolerate individual asset failures so install never rejects entirely.
+      .then((cache) => Promise.allSettled(ASSETS_TO_CACHE.map((a) => cache.add(a))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -39,7 +44,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // API Requests: Network-First, fallback to cache
+  // Only handle GET; let the browser deal with POST/PUT/etc. directly.
+  if (e.request.method !== 'GET') return;
+
+  // Never intercept our own API / Netlify function / Identity calls — they must be
+  // live (auth, uploads, moderation) and must not be served from a stale cache.
+  if (url.origin === self.location.origin &&
+      (url.pathname.startsWith('/api/') || url.pathname.startsWith('/.netlify/'))) {
+    return;
+  }
+
+  // External API Requests (Sefaria / Hebcal): Network-First, fallback to cache
   if (url.hostname.includes('sefaria.org') || url.hostname.includes('hebcal.com')) {
     e.respondWith(
       caches.open(API_CACHE_NAME).then((cache) => {
@@ -50,29 +65,47 @@ self.addEventListener('fetch', (e) => {
             }
             return response;
           })
-          .catch(() => {
-            return cache.match(e.request);
-          });
+          .catch(() => cache.match(e.request));
       })
     );
     return;
   }
 
-  // App Shell Assets: Stale-While-Revalidate (instant load + async cache update)
-  e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      const fetchPromise = fetch(e.request).then((networkResponse) => {
-        if (networkResponse.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(e.request, networkResponse.clone());
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Silent catch for offline fetch failure
-      });
+  // App Shell Assets: Stale-While-Revalidate with a safe offline fallback.
+  e.respondWith((async () => {
+    const cached = await caches.match(e.request);
+    if (cached) {
+      // Revalidate in the background without blocking the response.
+      e.waitUntil((async () => {
+        try {
+          const net = await fetch(e.request);
+          if (net && net.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(e.request, net.clone());
+          }
+        } catch (_) { /* offline — keep cached copy */ }
+      })());
+      return cached;
+    }
 
-      return cachedResponse || fetchPromise;
-    })
-  );
+    try {
+      const net = await fetch(e.request);
+      if (net && net.status === 200) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(e.request, net.clone());
+      }
+      return net;
+    } catch (_) {
+      // Offline and nothing cached: fall back to the app shell for navigations.
+      if (e.request.mode === 'navigate') {
+        const shell = await caches.match('index.html') || await caches.match('./');
+        if (shell) return shell;
+      }
+      return new Response('Sin conexión', {
+        status: 503,
+        statusText: 'Offline',
+        headers: { 'content-type': 'text/plain; charset=utf-8' }
+      });
+    }
+  })());
 });
