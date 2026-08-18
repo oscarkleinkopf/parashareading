@@ -229,7 +229,8 @@
                     const id = btn.getAttribute('data-play-rec');
                     const vs = parseInt(btn.getAttribute('data-vs'), 10);
                     const ve = parseInt(btn.getAttribute('data-ve'), 10);
-                    this.playRealRecording(id, isNaN(vs) ? null : vs, isNaN(ve) ? null : ve);
+                    const ms = parseInt(btn.getAttribute('data-ms'), 10);
+                    this.playRealRecording(id, isNaN(vs) ? null : vs, isNaN(ve) ? null : ve, isNaN(ms) ? null : ms);
                 });
             });
 
@@ -246,7 +247,7 @@
                         <div style="font-weight:600;">${this.escape(r.uploaderName || 'Rabino')}</div>
                         <div style="font-size:12px;color:var(--color-text-muted);">${range} · ${this.escape(r.tradition || 'ashkenazi')}</div>
                     </div>
-                    <button class="btn-primary" data-play-rec="${r.id}" data-vs="${r.verseStart || ''}" data-ve="${r.verseEnd || ''}" style="padding:8px 16px;">▶ Voz real</button>
+                    <button class="btn-primary" data-play-rec="${r.id}" data-vs="${r.verseStart || ''}" data-ve="${r.verseEnd || ''}" data-ms="${r.durationMs || ''}" style="padding:8px 16px;">▶ Voz real</button>
                 </div>
             `;
         },
@@ -374,7 +375,7 @@
         },
 
         // ---------- Reproducción de grabación real, sincronizada por versículo ----------
-        playRealRecording(id, verseStart, verseEnd) {
+        playRealRecording(id, verseStart, verseEnd, durationMs) {
             this.stopRealRecording();
             // Detener el audio sintetizado para no superponer.
             if (window.App && window.App.stopAudio) window.App.stopAudio();
@@ -386,11 +387,18 @@
             const startIdx = verseStart ? (verseStart - 1) : 0;
             const endIdx = verseEnd ? (verseEnd - 1) : (total > 0 ? total - 1 : 0);
 
+            // Preferimos durationMs de la BD: el stream a veces deja audio.duration en Infinity.
+            const knownTotalSec = durationMs ? (durationMs / 1000) : 0;
+            let lastIdx = -1;
             const highlight = () => {
-                if (!audio.duration || !isFinite(audio.duration)) return;
-                const frac = Math.min(0.999, audio.currentTime / audio.duration);
+                const totalSec = knownTotalSec || (isFinite(audio.duration) ? audio.duration : 0);
+                if (!totalSec) return;
+                const frac = Math.min(0.999, audio.currentTime / totalSec);
                 const span = (endIdx - startIdx) + 1;
                 const idx = startIdx + Math.floor(frac * span);
+                // Solo actualizar/desplazar cuando cambia el versículo (evita jitter de scroll).
+                if (idx === lastIdx) return;
+                lastIdx = idx;
                 this.highlightVerseRow(idx);
             };
 
