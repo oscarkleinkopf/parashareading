@@ -24,13 +24,17 @@ export default async (_req: Request, context: Context) => {
   }
 
   const store = getStore({ name: "recordings" });
-  const stream = await store.get(row.blobKey, { type: "stream" });
-  if (!stream) return new Response("Not found", { status: 404 });
+  // Uploads are capped at 6 MB, so buffering is fine and lets us set Content-Length,
+  // which browsers need to compute <audio>.duration and to allow seeking.
+  const buffer = await store.get(row.blobKey, { type: "arrayBuffer" });
+  if (!buffer) return new Response("Not found", { status: 404 });
 
-  return new Response(stream as ReadableStream, {
+  return new Response(buffer, {
     status: 200,
     headers: {
       "content-type": row.contentType || "audio/webm",
+      "content-length": String(buffer.byteLength),
+      "accept-ranges": "bytes",
       "cache-control": "public, max-age=3600",
     },
   });

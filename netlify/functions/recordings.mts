@@ -24,31 +24,38 @@ async function listRecordings(req: Request): Promise<Response> {
     return jsonResponse({ error: "Faltan parámetros 'parasha' y 'aliyah'." }, 400);
   }
 
-  const rows = await db
-    .select()
-    .from(recordings)
-    .where(and(
-      eq(recordings.parashaId, parasha),
-      eq(recordings.aliyah, aliyah),
-      eq(recordings.status, "approved"),
-    ))
-    .orderBy(desc(recordings.createdAt));
+  try {
+    const rows = await db
+      .select()
+      .from(recordings)
+      .where(and(
+        eq(recordings.parashaId, parasha),
+        eq(recordings.aliyah, aliyah),
+        eq(recordings.status, "approved"),
+      ))
+      .orderBy(desc(recordings.createdAt));
 
-  // No exponemos blobKey; en su lugar entregamos una URL de streaming same-origin.
-  const items = rows.map((r) => ({
-    id: r.id,
-    parashaId: r.parashaId,
-    aliyah: r.aliyah,
-    verseStart: r.verseStart,
-    verseEnd: r.verseEnd,
-    durationMs: r.durationMs,
-    uploaderName: r.uploaderName,
-    tradition: r.tradition,
-    createdAt: r.createdAt,
-    audioUrl: `/api/recordings/${r.id}/audio`,
-  }));
+    // No exponemos blobKey; en su lugar entregamos una URL de streaming same-origin.
+    const items = rows.map((r) => ({
+      id: r.id,
+      parashaId: r.parashaId,
+      aliyah: r.aliyah,
+      verseStart: r.verseStart,
+      verseEnd: r.verseEnd,
+      durationMs: r.durationMs,
+      uploaderName: r.uploaderName,
+      tradition: r.tradition,
+      createdAt: r.createdAt,
+      audioUrl: `/api/recordings/${r.id}/audio`,
+    }));
 
-  return jsonResponse({ recordings: items });
+    return jsonResponse({ recordings: items });
+  } catch (err) {
+    // Sin DB local migrada (o Identity/DB aún no provisionada) degradamos a lista vacía
+    // en vez de un 500 crudo que rompe el panel de la comunidad.
+    console.error("listRecordings failed:", err);
+    return jsonResponse({ recordings: [], warning: "backend_unavailable" }, 200);
+  }
 }
 
 // POST /api/recordings  (multipart/form-data)
