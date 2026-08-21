@@ -15,7 +15,9 @@
             recordedBlob: null,
             recordStartedAt: 0,
             realAudio: null,
-            realTimer: null
+            realTimer: null,
+            approvedItems: [],
+            realGeneration: 0
         },
 
         api: {
@@ -211,6 +213,9 @@
                 }
             } catch (e) { /* backend no disponible: degradar a lista vacía */ }
 
+            this.state.approvedItems = items;
+            this.syncPlayerSourceSelect(items);
+
             const listHtml = items.length
                 ? items.map((r) => this.recordingRow(r)).join('')
                 : '<p style="color:var(--color-text-muted);font-size:14px;">Aún no hay grabaciones aprobadas para esta aliyá. Mientras tanto, usa el audio generado con melodía sincronizada.</p>';
@@ -230,7 +235,7 @@
                     const vs = parseInt(btn.getAttribute('data-vs'), 10);
                     const ve = parseInt(btn.getAttribute('data-ve'), 10);
                     const ms = parseInt(btn.getAttribute('data-ms'), 10);
-                    this.playRealRecording(id, isNaN(vs) ? null : vs, isNaN(ve) ? null : ve, isNaN(ms) ? null : ms);
+                    this.useRecordingInPlayer(id, isNaN(vs) ? null : vs, isNaN(ve) ? null : ve, isNaN(ms) ? null : ms);
                 });
             });
 
@@ -375,46 +380,198 @@
         },
 
         // ---------- Reproducción de grabación real, sincronizada por versículo ----------
-        playRealRecording(id, verseStart, verseEnd, durationMs) {
+        syncPlayerSourceSelect(items) {
+            const sel = document.getElementById('playerSourceSelect');
+            if (!sel) return;
+            const prev = sel.value;
+            const options = ['<option value="synth" style="background: #060913; color: #fff;">Sintetizado</option>'];
+            (items || []).forEach((r) => {
+                const range = (r.verseStart && r.verseEnd) ? ` ${r.verseStart}–${r.verseEnd}` : '';
+                const label = `${r.uploaderName || 'Voz real'}${range}`;
+                options.push(`<option value="real:${this.escape(r.id)}" style="background: #060913; color: #fff;">${this.escape(label)}</option>`);
+            });
+            sel.innerHTML = options.join('');
+            const stillThere = Array.from(sel.options).some((o) => o.value === prev);
+            sel.value = stillThere ? prev : 'synth';
+            if (!stillThere && window.App && App.setAudioSource) {
+                App.setAudioSource('synth');
+            }
+        },
+
+        getSelectedRecording() {
+            const sel = document.getElementById('playerSourceSelect');
+            const val = sel ? sel.value : 'synth';
+            const id = (window.App && App.state.realRecordingId) ||
+                (val && val.startsWith('real:') ? val.slice(5) : null);
+            if (!id) return null;
+            return (this.state.approvedItems || []).find((r) => r.id === id) || null;
+        },
+
+        findCoveringRecording(verseIndex) {
+            const items = this.state.approvedItems || [];
+            const covering = items.find((r) => {
+                const start = r.verseStart ? r.verseStart - 1 : 0;
+                const end = r.verseEnd ? r.verseEnd - 1 : ((this.state.current.verseCount || 1) - 1);
+                return verseIndex >= start && verseIndex <= end;
+            });
+            return covering || items[0] || null;
+        },
+
+        useRecordingInPlayer(id, verseStart, verseEnd, durationMs) {
+            const sel = document.getElementById('playerSourceSelect');
+            const value = `real:${id}`;
+            if (sel) {
+                if (![...sel.options].some((o) => o.value === value)) {
+                    const opt = document.createElement('option');
+                    opt.value = value;
+                    opt.textContent = 'Voz real';
+                    opt.style.background = '#060913';
+                    opt.style.color = '#fff';
+                    sel.appendChild(opt);
+                }
+                sel.value = value;
+            }
+            if (!(this.state.approvedItems || []).some((r) => r.id === id)) {
+                this.state.approvedItems = this.state.approvedItems || [];
+                this.state.approvedItems.push({ id, verseStart, verseEnd, durationMs });
+            }
+            if (window.App) {
+                App.state.audioSource = 'real';
+                App.state.realRecordingId = id;
+                const modeSelect = document.getElementById('playerAudioModeSelect');
+                if (modeSelect) modeSelect.disabled = true;
+                App.revealPlayerDock();
+                const startIdx = verseStart ? verseStart - 1 : 0;
+                App.playFromVerse(startIdx);
+            } else {
+                this.playRealRecording(id, verseStart, verseEnd, durationMs);
+            }
+        },
+
+        playForVerse(verseIndex) {
+            const rec = this.getSelectedRecording() || this.findCoveringRecording(verseIndex);
+            if (!rec) {
+                if (window.App) {
+                    App.state.audioSource = 'synth';
+                    const sel = document.getElementById('playerSourceSelect');
+                    if (sel) sel.value = 'synth';
+                    const modeSelect = document.getElementById('playerAudioModeSelect');
+                    if (modeSelect) modeSelect.disabled = false;
+                    App.chantNextTropeGroup();
+                }
+                return;
+            }
+            this.playRealRecording(rec.id, rec.verseStart, rec.verseEnd, rec.durationMs, verseIndex, { fromApp: true });
+        },
+
+        setPlaybackRate(rate) {
+            if (this.state.realAudio) {
+                try { this.state.realAudio.playbackRate = rate || 1; } catch (e) { /* ignore */ }
+            }
+        },
+
+        playRealRecording(id, verseStart, verseEnd, durationMs, startVerseIndex, opts) {
+            const fromApp = opts && opts.fromApp;
             this.stopRealRecording();
-            // Detener el audio sintetizado para no superponer.
-            if (window.App && window.App.stopAudio) window.App.stopAudio();
+            // Detener el sintetizador solo si el clic vino del panel, no del reproductor (ya pausó).
+            if (!fromApp && window.App && window.App.stopAudio) window.App.stopAudio();
+
+            const gen = (this.state.realGeneration || 0) + 1;
+            this.state.realGeneration = gen;
 
             const audio = new Audio(this.api.audio(id));
+            audio.preload = 'auto';
+            if (window.App && App.state.playbackSpeed) {
+                audio.playbackRate = App.state.playbackSpeed;
+            }
             this.state.realAudio = audio;
 
             const total = this.state.current.verseCount || 0;
             const startIdx = verseStart ? (verseStart - 1) : 0;
             const endIdx = verseEnd ? (verseEnd - 1) : (total > 0 ? total - 1 : 0);
+            const span = Math.max(1, (endIdx - startIdx) + 1);
+            const targetIdx = Math.min(Math.max(startVerseIndex == null ? startIdx : startVerseIndex, startIdx), endIdx);
 
             // Preferimos durationMs de la BD: el stream a veces deja audio.duration en Infinity.
             const knownTotalSec = durationMs ? (durationMs / 1000) : 0;
             let lastIdx = -1;
-            const highlight = () => {
-                const totalSec = knownTotalSec || (isFinite(audio.duration) ? audio.duration : 0);
+            let didSeek = false;
+
+            const totalSeconds = () => knownTotalSec || (isFinite(audio.duration) ? audio.duration : 0);
+
+            const seekToVerse = (vIdx) => {
+                const totalSec = totalSeconds();
                 if (!totalSec) return;
-                const frac = Math.min(0.999, audio.currentTime / totalSec);
-                const span = (endIdx - startIdx) + 1;
-                const idx = startIdx + Math.floor(frac * span);
-                // Solo actualizar/desplazar cuando cambia el versículo (evita jitter de scroll).
+                audio.currentTime = ((vIdx - startIdx) / span) * totalSec;
+            };
+
+            const tick = () => {
+                if (this.state.realGeneration !== gen) return;
+                const totalSec = totalSeconds();
+                if (!totalSec) return;
+                const elapsedMs = audio.currentTime * 1000;
+                const totalMs = totalSec * 1000;
+                let idx = startIdx + Math.floor(Math.min(0.999, audio.currentTime / totalSec) * span);
+
+                if (window.App && App.state.loopVerse) {
+                    const stay = App.state.playIndex;
+                    if (idx !== stay) {
+                        const offset = ((stay - startIdx) / span) * totalSec;
+                        if (audio.currentTime - offset > 0.2) audio.currentTime = offset;
+                        idx = stay;
+                    }
+                }
+
+                if (window.App && App.onRealPlaybackTick) {
+                    App.onRealPlaybackTick({ verseIndex: idx, elapsedMs, totalMs });
+                }
                 if (idx === lastIdx) return;
                 lastIdx = idx;
                 this.highlightVerseRow(idx);
             };
 
-            audio.addEventListener('timeupdate', highlight);
-            audio.addEventListener('play', () => this.highlightVerseRow(startIdx));
-            audio.addEventListener('ended', () => this.stopRealRecording());
+            audio.addEventListener('loadedmetadata', () => {
+                if (this.state.realGeneration !== gen) return;
+                if (!didSeek) {
+                    seekToVerse(targetIdx);
+                    didSeek = true;
+                }
+            });
+            audio.addEventListener('timeupdate', tick);
+            audio.addEventListener('play', () => {
+                if (this.state.realGeneration !== gen) return;
+                this.highlightVerseRow(targetIdx);
+                if (window.App) {
+                    App.state.isPlaying = true;
+                    App.updatePlayerButtons(true);
+                }
+            });
+            audio.addEventListener('ended', () => {
+                if (this.state.realGeneration !== gen) return;
+                if (window.App && App.onRealAudioEnded) App.onRealAudioEnded();
+                else this.stopRealRecording();
+            });
             audio.addEventListener('error', () => {
+                if (this.state.realGeneration !== gen) return;
                 this.stopRealRecording();
                 const status = document.getElementById('recStatus');
                 if (status) status.textContent = 'No se pudo reproducir la grabación.';
             });
 
-            audio.play().catch(() => { /* autoplay bloqueado hasta gesto */ });
+            const start = () => {
+                if (this.state.realGeneration !== gen) return;
+                if (!didSeek) {
+                    seekToVerse(targetIdx);
+                    didSeek = true;
+                }
+                audio.play().catch(() => { /* autoplay bloqueado hasta gesto */ });
+            };
+            if (audio.readyState >= 1) start();
+            else audio.addEventListener('canplay', start, { once: true });
         },
 
         stopRealRecording() {
+            this.state.realGeneration = (this.state.realGeneration || 0) + 1;
             const audio = this.state.realAudio;
             if (audio) {
                 try { audio.pause(); } catch (e) { /* ignore */ }
