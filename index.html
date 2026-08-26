@@ -30,7 +30,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- Hojas de Estilo -->
-    <link rel="stylesheet" href="styles.css?v=3.7">
+    <link rel="stylesheet" href="styles.css?v=3.8">
 </head>
 <body>
 
@@ -289,6 +289,9 @@
                         <button type="button" class="btn-secondary" id="btnPracticePlay">Practicar desde pendiente</button>
                         <button type="button" class="btn-secondary" id="btnPracticeMark">Marcar verso actual</button>
                         <button type="button" class="btn-secondary ghost" id="btnPracticeReset">Reiniciar progreso</button>
+                        <button type="button" class="btn-secondary" id="btnHidePhonetics" aria-pressed="false" title="Ocultar la fonética para memorizar el hebreo">Ocultar fonética</button>
+                        <button type="button" class="btn-secondary" id="btnHideTranslation" aria-pressed="false" title="Ocultar la traducción para memorizar el sentido">Ocultar traducción</button>
+                        <button type="button" class="btn-secondary" id="btnLoopVerse" aria-pressed="false" title="Repetir el versículo actual hasta marcarlo">Repetir versículo</button>
                     </div>
                 </div>
 
@@ -445,6 +448,11 @@
         </div>
         
         <div class="player-settings">
+            <span style="font-size:11px; color:var(--color-text-muted); font-family:var(--font-ui);">Fuente:</span>
+            <select id="playerSourceSelect" class="speed-badge" aria-label="Fuente de audio" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--color-text-secondary); padding: 4px 8px; border-radius: var(--radius-xs); font-size: 11px; font-family: var(--font-ui); cursor: pointer; outline: none; margin-right: 8px;">
+                <option value="synth" style="background: #060913; color: #fff;">Sintetizado</option>
+            </select>
+
             <span style="font-size:11px; color:var(--color-text-muted); font-family:var(--font-ui);">Modo:</span>
             <select id="playerAudioModeSelect" class="speed-badge" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--color-text-secondary); padding: 4px 8px; border-radius: var(--radius-xs); font-size: 11px; font-family: var(--font-ui); cursor: pointer; outline: none; margin-right: 8px;">
                 <option value="trope" style="background: #060913; color: #fff;">Solo Tropos</option>
@@ -466,13 +474,13 @@
     <script src="trope_synthesizer.js?v=3.1"></script>
     
     <!-- Script Principal de la Lógica de la Aplicación -->
-    <script src="app.js?v=3.1"></script>
+    <script src="app.js?v=3.8"></script>
 
     <!-- SDK de Netlify Identity empaquetado (expone window.NetlifyIdentity) -->
     <script type="module" src="assets/netlify-identity.js?v=3.1"></script>
 
     <!-- Grabaciones de la comunidad: auth, aporte, reproducción y moderación -->
-    <script src="recordings.js?v=3.7"></script>
+    <script src="recordings.js?v=3.8"></script>
     
     <!-- Registro de Service Worker PWA -->
     <script>

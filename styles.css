@@ -344,6 +344,19 @@ select.input-control {
     border-color: rgba(255, 255, 255, 0.12);
 }
 
+.practice-actions .btn-secondary[aria-pressed="true"],
+.btn-secondary.practice-btn-on {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    background: rgba(212, 175, 55, 0.12);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.18);
+}
+
+.speed-badge:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 button:focus-visible,
 [tabindex]:focus-visible,
 .progress-bar-bg:focus-visible {
@@ -740,6 +753,28 @@ button:focus-visible,
     justify-content: center;
 }
 
+body.hide-phonetics .column-phonetics,
+body.hide-phonetics #flashcardPhonetics {
+    display: none;
+}
+
+body.hide-translation .column-translation,
+body.hide-translation #flashcardTranslation {
+    display: none;
+}
+
+body.hide-phonetics .verse-row {
+    grid-template-columns: 1.15fr 0.9fr auto;
+}
+
+body.hide-translation .verse-row {
+    grid-template-columns: 1.15fr 1.15fr auto;
+}
+
+body.hide-phonetics.hide-translation .verse-row {
+    grid-template-columns: 1fr auto;
+}
+
 .verse-actions {
     display: flex;
     align-items: center;
@@ -789,6 +824,12 @@ button:focus-visible,
         grid-template-columns: 1fr;
         gap: 15px;
         padding-top: 30px;
+    }
+
+    body.hide-phonetics .verse-row,
+    body.hide-translation .verse-row,
+    body.hide-phonetics.hide-translation .verse-row {
+        grid-template-columns: 1fr;
     }
     
     .column-hebrew {

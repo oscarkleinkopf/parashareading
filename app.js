@@ -25,7 +25,12 @@ const App = {
         activeHebrewList: [],
         activePhoneticsList: [],
         activeTranslationList: [],
-        audioMode: 'hebrew' // 'trope', 'hebrew' or 'spanish'
+        audioMode: 'hebrew', // 'trope', 'hebrew' or 'spanish'
+        audioSource: 'synth', // 'synth' | 'real'
+        hidePhonetics: false,
+        hideTranslation: false,
+        loopVerse: false,
+        realRecordingId: null
     },
 
     // 54 Parashot catalog indexed by book
@@ -856,13 +861,25 @@ const App = {
                 }
             }
         });
-        
+
+        const sourceSelect = document.getElementById('playerSourceSelect');
+        if (sourceSelect) {
+            sourceSelect.addEventListener('change', (e) => this.setAudioSource(e.target.value));
+        }
+
         // Progress bar click scrubbing
         document.getElementById('playerProgressBar').addEventListener('click', (e) => this.scrubPlayer(e));
 
         document.getElementById('btnPracticePlay').addEventListener('click', () => this.playFirstPendingVerse());
         document.getElementById('btnPracticeMark').addEventListener('click', () => this.markCurrentVerseComplete());
         document.getElementById('btnPracticeReset').addEventListener('click', () => this.resetCurrentProgress());
+
+        const hidePhonBtn = document.getElementById('btnHidePhonetics');
+        if (hidePhonBtn) hidePhonBtn.addEventListener('click', () => this.toggleHidePhonetics());
+        const hideTransBtn = document.getElementById('btnHideTranslation');
+        if (hideTransBtn) hideTransBtn.addEventListener('click', () => this.toggleHideTranslation());
+        const loopVerseBtn = document.getElementById('btnLoopVerse');
+        if (loopVerseBtn) loopVerseBtn.addEventListener('click', () => this.toggleLoopVerse());
 
         this.enhanceKeyboardAccess();
     },
@@ -1292,29 +1309,91 @@ const App = {
         await this.fetchAndDisplayDynamicSefariaText(ref);
     },
 
+    buildSefariaUrl(ref, ven) {
+        let url = `https://www.sefaria.org/api/texts/${encodeURI(ref)}?context=0`;
+        if (ven) url += `&ven=${encodeURIComponent(ven)}`;
+        return url;
+    },
+
+    preferredSpanishVen(ref) {
+        if (ref.includes('Genesis')) {
+            return 'El Pentateuco Con El Comentario de Rabí Shelomó Itzjakí (Rashí) [es]';
+        }
+        if (ref.includes('Exodus')) {
+            return 'Alfredo cerhy [es]';
+        }
+        // Leviticus / Numbers / Deuteronomy: ask for community Spanish when it exists.
+        // Sefaria still lacks Spanish for some books; ensureSefariaTranslation falls back.
+        if (ref.includes('Leviticus') || ref.includes('Numbers') || ref.includes('Deuteronomy')) {
+            return 'Sefaria Community Translation [es]';
+        }
+        return '';
+    },
+
+    pickSpanishVen(ref, versions) {
+        const preferred = this.preferredSpanishVen(ref);
+        const list = versions || [];
+        if (preferred && list.some(v => v.versionTitle === preferred)) return preferred;
+        const listed = list.find(v =>
+            v.languageFamilyName === 'spanish' ||
+            v.actualLanguage === 'es' ||
+            (v.versionTitle && String(v.versionTitle).includes('[es]'))
+        );
+        return listed ? listed.versionTitle : preferred;
+    },
+
+    isSpanishVersionTitle(title) {
+        if (!title) return false;
+        const t = String(title).toLowerCase();
+        return String(title).includes('[es]') || t.includes('spanish') || t.includes('español');
+    },
+
+    sefariaHasText(text) {
+        if (text == null) return false;
+        const raw = Array.isArray(text) ? text.flat(Infinity) : [text];
+        return raw.some(v => String(v || '').replace(/<[^>]*>/g, '').trim());
+    },
+
+    async ensureSefariaTranslation(ref, data, requestedVen) {
+        const listedVen = this.pickSpanishVen(ref, data.versions);
+        const translationEmpty = !this.sefariaHasText(data.text);
+        const isSpanish = this.isSpanishVersionTitle(data.versionTitle);
+
+        if (translationEmpty) {
+            const fallback = await fetch(this.buildSefariaUrl(ref, null));
+            if (fallback.ok) {
+                const fb = await fallback.json();
+                if (this.sefariaHasText(fb.text)) {
+                    data = { ...data, text: fb.text, versionTitle: fb.versionTitle };
+                }
+            }
+            return data;
+        }
+
+        if (!isSpanish && listedVen && listedVen !== requestedVen) {
+            const esRes = await fetch(this.buildSefariaUrl(ref, listedVen));
+            if (esRes.ok) {
+                const esData = await esRes.json();
+                if (this.sefariaHasText(esData.text)) {
+                    data = { ...data, text: esData.text, versionTitle: esData.versionTitle };
+                }
+            }
+        }
+        return data;
+    },
+
     // Dynamic Sefaria text API downloader
     async fetchAndDisplayDynamicSefariaText(ref, customTitle = null) {
         document.getElementById('readingLoader').classList.remove('hidden');
         document.getElementById('verseContainer').innerHTML = '';
 
         try {
-            // Build Sefaria API URL with Spanish version if available
-            let url = `https://www.sefaria.org/api/texts/${encodeURI(ref)}?context=0`;
-            let ven = '';
-            if (ref.includes('Genesis')) {
-                ven = 'El Pentateuco Con El Comentario de Rabí Shelomó Itzjakí (Rashí) [es]';
-            } else if (ref.includes('Exodus')) {
-                ven = 'Alfredo cerhy [es]';
-            } else if (ref.includes('Deuteronomy')) {
-                ven = 'Sefaria Community Translation [es]';
+            const preferredVen = this.preferredSpanishVen(ref);
+            const response = await fetch(this.buildSefariaUrl(ref, preferredVen));
+            if (!response.ok) {
+                throw new Error(`Sefaria no respondió (HTTP ${response.status}).`);
             }
-            if (ven) {
-                url += `&ven=${encodeURIComponent(ven)}`;
-            }
-
-            // Call Sefaria REST API using encodeURI to prevent invalid spaces from crashing browsers
-            const response = await fetch(url);
-            const data = await response.json();
+            let data = await response.json();
 
             document.getElementById('readingLoader').classList.add('hidden');
 
@@ -1322,25 +1401,23 @@ const App = {
                 throw new Error('No se pudo encontrar texto en hebreo para esta porción en Sefaria.');
             }
 
+            data = await this.ensureSefariaTranslation(ref, data, preferredVen);
+
             // Sefaria returns `he` array (Hebrew text) and `text` array (English text by default or requested translation)
             // We support both arrays and raw strings gracefully
             const rawHebrew = Array.isArray(data.he) ? data.he.flat(Infinity) : (typeof data.he === 'string' ? [data.he] : []);
             const rawEnglish = Array.isArray(data.text) ? data.text.flat(Infinity) : (typeof data.text === 'string' ? [data.text] : []);
 
             // Clean any HTML tags (like <b>) and HTML entities (like &thinsp;) to ensure visual excellence
-            const hebrewVerses = rawHebrew.map(v => v.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim());
-            const englishVerses = rawEnglish.map(v => v.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim());
+            const hebrewVerses = rawHebrew.map(v => String(v || '').replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim());
+            const englishVerses = rawEnglish.map(v => String(v || '').replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim());
             
             // Map the retrieved Sefaria translation to the translation list (Spanish when available, otherwise English fallback)
             const translations = hebrewVerses.map((_, idx) => {
                 return englishVerses[idx] || 'Traducción no disponible.';
             });
 
-            // Detect if translation is Spanish (contains [es] or Spanish in the title)
-            const isSpanish = data.versionTitle && (
-                data.versionTitle.includes('[es]') || 
-                data.versionTitle.toLowerCase().includes('spanish')
-            );
+            const isSpanish = this.isSpanishVersionTitle(data.versionTitle);
             
             // Toggle visibility of the translation notice.
             // If it is NOT Spanish (meaning it fell back to English), we show the notice.
@@ -1728,6 +1805,89 @@ const App = {
         this.startChantingQueue();
     },
 
+    setAudioSource(value) {
+        const isReal = value && value !== 'synth';
+        const recordingId = isReal ? String(value).replace(/^real:/, '') : null;
+        const same = this.state.audioSource === (isReal ? 'real' : 'synth') &&
+            this.state.realRecordingId === recordingId;
+        this.state.audioSource = isReal ? 'real' : 'synth';
+        this.state.realRecordingId = recordingId;
+        const modeSelect = document.getElementById('playerAudioModeSelect');
+        if (modeSelect) modeSelect.disabled = isReal;
+        if (same) return;
+        if (this.state.isPlaying) {
+            this.playFromVerse(this.state.playIndex);
+        }
+    },
+
+    toggleHidePhonetics() {
+        this.state.hidePhonetics = !this.state.hidePhonetics;
+        this.syncMemorizationUi();
+    },
+
+    toggleHideTranslation() {
+        this.state.hideTranslation = !this.state.hideTranslation;
+        this.syncMemorizationUi();
+    },
+
+    toggleLoopVerse() {
+        this.state.loopVerse = !this.state.loopVerse;
+        this.syncMemorizationUi();
+    },
+
+    syncMemorizationUi() {
+        document.body.classList.toggle('hide-phonetics', !!this.state.hidePhonetics);
+        document.body.classList.toggle('hide-translation', !!this.state.hideTranslation);
+
+        const phonBtn = document.getElementById('btnHidePhonetics');
+        if (phonBtn) {
+            phonBtn.setAttribute('aria-pressed', this.state.hidePhonetics ? 'true' : 'false');
+            phonBtn.classList.toggle('practice-btn-on', this.state.hidePhonetics);
+            phonBtn.textContent = this.state.hidePhonetics ? 'Mostrar fonética' : 'Ocultar fonética';
+        }
+        const transBtn = document.getElementById('btnHideTranslation');
+        if (transBtn) {
+            transBtn.setAttribute('aria-pressed', this.state.hideTranslation ? 'true' : 'false');
+            transBtn.classList.toggle('practice-btn-on', this.state.hideTranslation);
+            transBtn.textContent = this.state.hideTranslation ? 'Mostrar traducción' : 'Ocultar traducción';
+        }
+        const loopBtn = document.getElementById('btnLoopVerse');
+        if (loopBtn) {
+            loopBtn.setAttribute('aria-pressed', this.state.loopVerse ? 'true' : 'false');
+            loopBtn.classList.toggle('practice-btn-on', this.state.loopVerse);
+        }
+    },
+
+    // Called by CantoralRecordings while a real take is playing.
+    onRealPlaybackTick({ verseIndex, elapsedMs, totalMs }) {
+        if (typeof elapsedMs === 'number' && totalMs) {
+            this.updatePlaybackProgress(elapsedMs, totalMs);
+        }
+        if (typeof verseIndex !== 'number' || verseIndex === this.state.playIndex) return;
+        this.state.playIndex = verseIndex;
+        if (this.state.viewMode === 'verse' && this.state.activeVerseIndex !== verseIndex) {
+            this.state.activeVerseIndex = verseIndex;
+            this.renderFlashcard('left');
+        }
+    },
+
+    onRealAudioEnded() {
+        if (!this.state.isPlaying) return;
+        if (this.state.loopVerse) {
+            if (window.CantoralRecordings) CantoralRecordings.playForVerse(this.state.playIndex);
+            return;
+        }
+        if (this.state.isLooping) {
+            this.state.playIndex = 0;
+            if (window.CantoralRecordings) CantoralRecordings.playForVerse(0);
+            return;
+        }
+        this.state.isPlaying = false;
+        this.updatePlayerButtons(false);
+        document.querySelectorAll('.verse-row').forEach(r => r.classList.remove('playing'));
+        this.setChantingWord(null);
+    },
+
     // Reveals docked audio player
     revealPlayerDock() {
         const dock = document.getElementById('audioPlayerDock');
@@ -1753,6 +1913,10 @@ const App = {
     startChantingQueue() {
         this.state.isPlaying = true;
         this.updatePlayerButtons(true);
+        if (this.state.audioSource === 'real' && window.CantoralRecordings) {
+            CantoralRecordings.playForVerse(this.state.playIndex);
+            return;
+        }
         this.chantNextTropeGroup();
     },
 
@@ -1780,13 +1944,17 @@ const App = {
             this.renderFlashcard('left');
         }
 
-        // Highlight active row on screen
-        const rows = document.querySelectorAll('.verse-row');
-        rows.forEach(r => r.classList.remove('playing'));
+        // Highlight active row on screen (do not scroll when looping the same verse)
         const activeRow = document.getElementById(`verse-row-${idx}`);
+        const alreadyThis = activeRow && activeRow.classList.contains('playing');
+        document.querySelectorAll('.verse-row.playing').forEach(r => {
+            if (r !== activeRow) r.classList.remove('playing');
+        });
         if (activeRow && this.state.viewMode === 'parallel') {
             activeRow.classList.add('playing');
-            activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (!alreadyThis) {
+                activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
         }
 
         // Progress/clock are driven by the real cumulative motif duration of the aliyah.
@@ -1838,7 +2006,7 @@ const App = {
         const nextVerseDelay = (durationSum + this.BREATH_MS) / this.state.playbackSpeed;
 
         const nextTid = setTimeout(() => {
-            this.state.playIndex++;
+            if (!this.state.loopVerse) this.state.playIndex++;
             this.chantNextTropeGroup();
         }, nextVerseDelay);
         this.state._chantTimeouts.push(nextTid);
@@ -1890,6 +2058,9 @@ const App = {
         if (window.TropeSynthesizer && TropeSynthesizer.stopAll) {
             TropeSynthesizer.stopAll();
         }
+        if (window.CantoralRecordings && CantoralRecordings.stopRealRecording) {
+            CantoralRecordings.stopRealRecording();
+        }
         // Clean any active karaoke highlights
         this.setChantingWord(null);
         document.querySelectorAll('.heb-word.chanting-word').forEach(w => w.classList.remove('chanting-word'));
@@ -1935,10 +2106,13 @@ const App = {
         this.state.playbackSpeed = speeds[nextIdx];
         document.getElementById('playerSpeedBtn').textContent = `${this.state.playbackSpeed}x`;
         
-        // If playing, pause and resume to apply the new speed immediately
         if (this.state.isPlaying) {
-            this.pauseAudio();
-            this.startChantingQueue();
+            if (this.state.audioSource === 'real' && window.CantoralRecordings && CantoralRecordings.setPlaybackRate) {
+                CantoralRecordings.setPlaybackRate(this.state.playbackSpeed);
+            } else {
+                this.pauseAudio();
+                this.startChantingQueue();
+            }
         }
     },
 
