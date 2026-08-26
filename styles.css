@@ -775,6 +775,13 @@ body.hide-phonetics.hide-translation .verse-row {
     grid-template-columns: 1fr auto;
 }
 
+body.hide-tropes .column-hebrew,
+body.hide-tropes .flashcard-hebrew,
+body.consonants-only .column-hebrew,
+body.consonants-only .flashcard-hebrew {
+    letter-spacing: 0.03em;
+}
+
 .verse-actions {
     display: flex;
     align-items: center;

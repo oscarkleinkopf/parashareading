@@ -30,6 +30,8 @@ const App = {
         hidePhonetics: false,
         hideTranslation: false,
         loopVerse: false,
+        hideTropes: false,
+        consonantsOnly: false,
         realRecordingId: null
     },
 
@@ -685,8 +687,10 @@ const App = {
     // Initialization routine
     init() {
         this.loadPracticeProgress();
+        this.loadMemorizationPrefs();
         this.populateDropdown();
         this.setupEventListeners();
+        this.syncMemorizationUi();
         this.renderTropeGlossary();
         this.handleHashChange(); // Enrutar hash inicial si existe
         
@@ -880,6 +884,10 @@ const App = {
         if (hideTransBtn) hideTransBtn.addEventListener('click', () => this.toggleHideTranslation());
         const loopVerseBtn = document.getElementById('btnLoopVerse');
         if (loopVerseBtn) loopVerseBtn.addEventListener('click', () => this.toggleLoopVerse());
+        const hideTropesBtn = document.getElementById('btnHideTropes');
+        if (hideTropesBtn) hideTropesBtn.addEventListener('click', () => this.toggleHideTropes());
+        const seferBtn = document.getElementById('btnSeferMode');
+        if (seferBtn) seferBtn.addEventListener('click', () => this.toggleConsonantsOnly());
 
         this.enhanceKeyboardAccess();
     },
@@ -972,15 +980,42 @@ const App = {
         if (!key) return;
 
         const completed = this.getCompletedSet();
-        if (completed.has(index)) {
-            completed.delete(index);
-        } else {
+        const added = !completed.has(index);
+        if (added) {
             completed.add(index);
+        } else {
+            completed.delete(index);
         }
 
         this.state.practiceProgress[key] = Array.from(completed).sort((a, b) => a - b);
         this.savePracticeProgress();
         this.updatePracticePanel();
+        if (added) this.advanceAfterMarking(index);
+    },
+
+    firstPendingIndex(from = 0) {
+        const total = this.state.currentVerseCount;
+        if (!total) return null;
+        const completed = this.getCompletedSet();
+        for (let i = from; i < total; i++) {
+            if (!completed.has(i)) return i;
+        }
+        for (let i = 0; i < from && i < total; i++) {
+            if (!completed.has(i)) return i;
+        }
+        return null;
+    },
+
+    advanceAfterMarking(index) {
+        if (!this.state.loopVerse || !this.state.isPlaying) return;
+        if (this.state.playIndex !== index) return;
+        const next = this.firstPendingIndex(index + 1);
+        if (next == null) {
+            this.stopAudio();
+            this.showNotification('¡Completaste esta Aliá!');
+            return;
+        }
+        this.playFromVerse(next);
     },
 
     markCurrentVerseComplete() {
@@ -996,14 +1031,8 @@ const App = {
         const total = this.state.currentVerseCount;
         if (!total) return;
 
-        const completed = this.getCompletedSet();
-        let firstPending = 0;
-        for (let i = 0; i < total; i++) {
-            if (!completed.has(i)) {
-                firstPending = i;
-                break;
-            }
-        }
+        let firstPending = this.firstPendingIndex(0);
+        if (firstPending == null) firstPending = 0;
         this.playFromVerse(firstPending);
     },
 
@@ -1648,7 +1677,8 @@ const App = {
         const span = document.createElement('span');
         span.className = 'heb-word';
         span.id = wordId;
-        span.textContent = word + ' ';
+        span.dataset.original = word;
+        span.textContent = this.displayHebrewWord(word) + ' ';
 
         const tropeKey = this.detectTropeInWord(word);
         if (tropeKey && TropeSynthesizer.tropes[tropeKey]) {
@@ -1835,6 +1865,67 @@ const App = {
         this.syncMemorizationUi();
     },
 
+    toggleHideTropes() {
+        this.state.hideTropes = !this.state.hideTropes;
+        if (this.state.hideTropes) this.state.consonantsOnly = false;
+        this.syncMemorizationUi();
+    },
+
+    toggleConsonantsOnly() {
+        this.state.consonantsOnly = !this.state.consonantsOnly;
+        if (this.state.consonantsOnly) this.state.hideTropes = false;
+        this.syncMemorizationUi();
+    },
+
+    MEMO_PREFS_KEY: 'cantoralMemorizationPrefs',
+
+    loadMemorizationPrefs() {
+        try {
+            const raw = localStorage.getItem(this.MEMO_PREFS_KEY);
+            if (!raw) return;
+            const prefs = JSON.parse(raw);
+            ['hidePhonetics', 'hideTranslation', 'loopVerse', 'hideTropes', 'consonantsOnly'].forEach((k) => {
+                if (typeof prefs[k] === 'boolean') this.state[k] = prefs[k];
+            });
+        } catch (err) {
+            /* ignore corrupt prefs */
+        }
+    },
+
+    saveMemorizationPrefs() {
+        try {
+            localStorage.setItem(this.MEMO_PREFS_KEY, JSON.stringify({
+                hidePhonetics: !!this.state.hidePhonetics,
+                hideTranslation: !!this.state.hideTranslation,
+                loopVerse: !!this.state.loopVerse,
+                hideTropes: !!this.state.hideTropes,
+                consonantsOnly: !!this.state.consonantsOnly
+            }));
+        } catch (err) {
+            /* private mode / quota */
+        }
+    },
+
+    stripTropesFromHebrew(word) {
+        return String(word || '').replace(/[\u0591-\u05AF\u05BD\u05C0]/g, '');
+    },
+
+    stripToConsonants(word) {
+        return String(word || '').replace(/[\u0591-\u05C7]/g, '');
+    },
+
+    displayHebrewWord(word) {
+        if (this.state.consonantsOnly) return this.stripToConsonants(word);
+        if (this.state.hideTropes) return this.stripTropesFromHebrew(word);
+        return word;
+    },
+
+    refreshHebrewDisplay() {
+        document.querySelectorAll('.heb-word[data-original]').forEach((el) => {
+            el.textContent = this.displayHebrewWord(el.dataset.original) + ' ';
+        });
+    },
+
     syncMemorizationUi() {
         document.body.classList.toggle('hide-phonetics', !!this.state.hidePhonetics);
         document.body.classList.toggle('hide-translation', !!this.state.hideTranslation);
@@ -1856,6 +1947,23 @@ const App = {
             loopBtn.setAttribute('aria-pressed', this.state.loopVerse ? 'true' : 'false');
             loopBtn.classList.toggle('practice-btn-on', this.state.loopVerse);
         }
+        const tropesBtn = document.getElementById('btnHideTropes');
+        if (tropesBtn) {
+            tropesBtn.setAttribute('aria-pressed', this.state.hideTropes ? 'true' : 'false');
+            tropesBtn.classList.toggle('practice-btn-on', this.state.hideTropes);
+            tropesBtn.textContent = this.state.hideTropes ? 'Mostrar tropos' : 'Ocultar tropos';
+        }
+        const seferBtn = document.getElementById('btnSeferMode');
+        if (seferBtn) {
+            seferBtn.setAttribute('aria-pressed', this.state.consonantsOnly ? 'true' : 'false');
+            seferBtn.classList.toggle('practice-btn-on', this.state.consonantsOnly);
+            seferBtn.textContent = this.state.consonantsOnly ? 'Con vocales' : 'Como el Sefer';
+        }
+
+        document.body.classList.toggle('hide-tropes', !!this.state.hideTropes);
+        document.body.classList.toggle('consonants-only', !!this.state.consonantsOnly);
+        this.refreshHebrewDisplay();
+        this.saveMemorizationPrefs();
     },
 
     // Called by CantoralRecordings while a real take is playing.
