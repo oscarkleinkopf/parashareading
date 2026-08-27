@@ -23,9 +23,11 @@ Preferencias en `localStorage` (`cantoralMemorizationPrefs`):
 
 `CantoralRecordings` graba con `MediaRecorder` (o un archivo) y publica vía `POST /api/recordings`. Las tomas de rabino/admin quedan **aprobadas al instante** (referencia pública). Cada `uploaderId` es una versión: si hay un parche más corto y más nuevo para unos versículos, el reproductor lo usa en ese tramo y sigue con el resto.
 
+Tras grabar, `POST /api/recordings/align` transcribe el audio (Gemini 3.5 Transcribe si el AI Gateway lo enruta; si no, `gemini-2.5-flash` con el audio) y alinea el texto con los versículos de la Aliá para rellenar el rango. El marcado manual sigue disponible.
+
 El CSP permite `media-src 'self' blob:`. El header `Permissions-Policy` habilita `microphone=(self)`.
 
-Helpers de versión (sin DOM): `recording-versions.js`. Tests: `npm test`.
+Helpers de versión (sin DOM): `recording-versions.js`. Alineación: `netlify/functions/_shared/align.ts`. Tests: `npm test`.
 
 ## Local
 

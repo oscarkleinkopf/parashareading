@@ -16,7 +16,7 @@ Los tropos sintéticos enseñan la melodía. Para oír **el texto cantado**:
 
 1. Elige la Aliá. En **Grabaciones de referencia** aparecen las versiones de cada rabino.
 2. En el reproductor, cambia **Fuente** a la versión que quieras (si hay varias, elige entre ellas).
-3. Si eres rabino: **Ingresar**, marca el tramo (clic en los versículos, o «Este versículo») y graba. No hace falta repetir la Aliá entera si te equivocaste: regraba solo esa fracción. Queda publicada como referencia para todos.
+3. Si eres rabino: **Ingresar** y graba. Al detener, la app intenta reconocer qué versículos cantaste. Si no acierta, márcalos a mano. No hace falta repetir la Aliá entera: regraba solo esa fracción. Queda publicada como referencia para todos.
 
 Pide primero la melodía de **tu** comunidad: es la que oirás en la bimá.
 

@@ -17,7 +17,7 @@
 - [ ] Permiso denegado muestra mensaje
 - [ ] Fuente muestra una opción por rabino (versión), no un clip suelto
 - [ ] Si un rabino tiene parche, al escuchar la versión se oye el parche en ese tramo y el resto de la toma
-- [ ] Marcar tramo en el texto (dos clics) o «Este versículo»; al grabar solo se publica esa fracción
+- [ ] Tras grabar, la app intenta reconocer el rango; se puede corregir a mano
 
 ## Comunidad (`netlify dev` o deploy)
 - [ ] Login Identity

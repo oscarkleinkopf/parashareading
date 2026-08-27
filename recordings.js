@@ -29,6 +29,7 @@
         api: {
             list: (p, a) => `/api/recordings?parasha=${encodeURIComponent(p)}&aliyah=${encodeURIComponent(a)}`,
             upload: '/api/recordings',
+            align: '/api/recordings/align',
             audio: (id) => `/api/recordings/${id}/audio`,
             moderate: (id) => `/api/recordings/${id}/moderate`,
             queue: (status) => `/api/moderation/recordings?status=${encodeURIComponent(status)}`
@@ -312,8 +313,8 @@
             area.innerHTML = `
                 <h4 style="margin:0 0 8px;font-family:var(--font-ui);color:var(--accent-gold);">Grabar o corregir un tramo</h4>
                 <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 12px;line-height:1.45;">
-                    No hace falta repetir la Aliá entera. Marca los versículos (o graba solo el actual).
-                    Si te equivocas al leer, regraba esa fracción: reemplaza ese tramo en <em>tu</em> versión.
+                    No hace falta repetir la Aliá entera. Al detener, la app intenta <strong>reconocer sola</strong> qué versículos cantaste (transcripción).
+                    También puedes marcarlos a mano. Un error se corrige regrabando solo esa fracción.
                 </p>
                 <div class="rec-range-toolbar">
                     <div>
@@ -327,6 +328,7 @@
                     <button class="btn-secondary${markOn}" id="recMarkModeBtn" type="button" aria-pressed="${this.state.markMode ? 'true' : 'false'}" style="padding:10px 14px;">Marcar en el texto</button>
                     <button class="btn-secondary" id="recThisVerseBtn" type="button" style="padding:10px 14px;">Este versículo</button>
                     <button class="btn-secondary" id="recFullAliyahBtn" type="button" style="padding:10px 14px;">Aliá completa</button>
+                    <button class="btn-secondary" id="recDetectBtn" type="button" style="padding:10px 14px;">Detectar tramo</button>
                 </div>
                 <p id="recRangeHint" class="rec-range-hint">${this.rangeHintText(range, total)}</p>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;">
@@ -349,6 +351,7 @@
             document.getElementById('recFullAliyahBtn').addEventListener('click', () => this.markFullAliyah());
             document.getElementById('recVerseStart').addEventListener('change', () => this.readRangeInputs());
             document.getElementById('recVerseEnd').addEventListener('change', () => this.readRangeInputs());
+            document.getElementById('recDetectBtn').addEventListener('click', () => this.detectRecordedRange());
             const file = document.getElementById('recFileInput');
             if (file) file.addEventListener('change', (ev) => this.handlePickedFile(ev));
         },
@@ -474,7 +477,7 @@
                 const idx = parseInt(row.dataset.verseIndex, 10);
                 const n = idx + 1;
                 const inRange = !!(range && n >= range.start && n <= range.end);
-                row.classList.toggle('verse-in-record-range', inRange && (this.state.markMode || recording));
+                row.classList.toggle('verse-in-record-range', inRange);
                 row.classList.toggle('verse-recording-now', inRange && recording);
             });
         },
@@ -492,7 +495,67 @@
             const wrap = document.getElementById('recUploadWrap');
             if (wrap) wrap.classList.remove('hidden');
             const status = document.getElementById('recStatus');
-            if (status) status.textContent = `Archivo listo (${file.name}). Revisa el tramo y publícalo.`;
+            if (status) status.textContent = `Archivo listo (${file.name}). Detectando tramo...`;
+            this.detectRecordedRange();
+        },
+
+        verseTextsForAlign() {
+            const list = (window.App && App.state && App.state.activeHebrewList) || [];
+            return list.map((text, i) => ({ n: i + 1, text: String(text || '') }));
+        },
+
+        async detectRecordedRange() {
+            const status = document.getElementById('recStatus');
+            const blob = this.state.recordedBlob;
+            if (!blob) {
+                if (status) status.textContent = 'Graba o sube un audio para detectar el tramo.';
+                return;
+            }
+            const verses = this.verseTextsForAlign();
+            if (!verses.length) {
+                if (status) status.textContent = 'Carga una Aliá para alinear el audio con los versículos.';
+                return;
+            }
+
+            const form = new FormData();
+            const file = blob instanceof File
+                ? blob
+                : new File([blob], 'grabacion.webm', { type: blob.type || 'audio/webm' });
+            form.append('audio', file);
+            form.append('verses', JSON.stringify(verses));
+
+            if (status) status.textContent = 'Escuchando la toma para reconocer el tramo...';
+            try {
+                const res = await fetch(this.api.align, {
+                    method: 'POST',
+                    body: form,
+                    credentials: 'include',
+                    headers: await this.authHeaders()
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (status) status.textContent = data.error || 'No se pudo detectar el tramo. Márcalo a mano.';
+                    return;
+                }
+                if (data.detected && data.verseStart && data.verseEnd) {
+                    this.state.recRange = {
+                        start: data.verseStart,
+                        end: data.verseEnd,
+                        anchor: null
+                    };
+                    this.syncRangeInputs();
+                    const range = this.normalizedRange();
+                    if (status) {
+                        status.textContent = range.start === range.end
+                            ? `Reconocido: versículo ${range.start}. Revísalo y publícalo (o corrige el rango).`
+                            : `Reconocido: versículos ${range.start}–${range.end}. Revísalo y publícalo (o corrige el rango).`;
+                    }
+                } else if (status) {
+                    status.textContent = data.message || 'No se reconoció el tramo. Márcalo a mano.';
+                }
+            } catch (e) {
+                if (status) status.textContent = 'No se pudo detectar el tramo (red). Márcalo a mano.';
+            }
         },
 
         // ---------- MediaRecorder ----------
@@ -534,9 +597,9 @@
                     const wrap = document.getElementById('recUploadWrap');
                     if (wrap) wrap.classList.remove('hidden');
                     if (btn) { btn.textContent = '● Grabar tramo'; btn.classList.remove('recording'); }
-                    const range = this.normalizedRange();
-                    if (status) status.textContent = `Listo: ${this.rangeHintText(range, this.state.current.verseCount || 0)} Escúchala y publícala.`;
+                    if (status) status.textContent = 'Grabación lista. Reconociendo qué versículos cantaste...';
                     this.applyRecordRangeHighlight();
+                    this.detectRecordedRange();
                 };
 
                 recorder.start();
