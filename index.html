@@ -30,7 +30,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- Hojas de Estilo -->
-    <link rel="stylesheet" href="styles.css?v=3.8">
+    <link rel="stylesheet" href="styles.css?v=3.9">
 </head>
 <body>
 
@@ -291,7 +291,9 @@
                         <button type="button" class="btn-secondary ghost" id="btnPracticeReset">Reiniciar progreso</button>
                         <button type="button" class="btn-secondary" id="btnHidePhonetics" aria-pressed="false" title="Ocultar la fonética para memorizar el hebreo">Ocultar fonética</button>
                         <button type="button" class="btn-secondary" id="btnHideTranslation" aria-pressed="false" title="Ocultar la traducción para memorizar el sentido">Ocultar traducción</button>
-                        <button type="button" class="btn-secondary" id="btnLoopVerse" aria-pressed="false" title="Repetir el versículo actual hasta marcarlo">Repetir versículo</button>
+                        <button type="button" class="btn-secondary" id="btnLoopVerse" aria-pressed="false" title="Repetir el versículo actual hasta marcarlo; al marcar, sigue con el siguiente pendiente">Repetir versículo</button>
+                        <button type="button" class="btn-secondary" id="btnHideTropes" aria-pressed="false" title="Quitar los signos de cantileo y dejar vocales, como el lado izquierdo de un tikkun">Ocultar tropos</button>
+                        <button type="button" class="btn-secondary" id="btnSeferMode" aria-pressed="false" title="Solo consonantes, como se lee en el Sefer Torá">Como el Sefer</button>
                     </div>
                 </div>
 
@@ -474,7 +476,7 @@
     <script src="trope_synthesizer.js?v=3.1"></script>
     
     <!-- Script Principal de la Lógica de la Aplicación -->
-    <script src="app.js?v=3.8"></script>
+    <script src="app.js?v=3.9"></script>
 
     <!-- SDK de Netlify Identity empaquetado (expone window.NetlifyIdentity) -->
     <script type="module" src="assets/netlify-identity.js?v=3.1"></script>
