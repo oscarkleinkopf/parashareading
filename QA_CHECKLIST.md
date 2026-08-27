@@ -15,12 +15,15 @@
 - [ ] Tropos sintéticos play/pausa/velocidad
 - [ ] Micrófono: grabar, detener, guardar (permiso concedido)
 - [ ] Permiso denegado muestra mensaje
-- [ ] Fuente «voz real» si hay grabación aprobada
+- [ ] Fuente muestra una opción por rabino (versión), no un clip suelto
+- [ ] Si un rabino tiene parche, al escuchar la versión se oye el parche en ese tramo y el resto de la toma
+- [ ] Marcar tramo en el texto (dos clics) o «Este versículo»; al grabar solo se publica esa fracción
 
 ## Comunidad (`netlify dev` o deploy)
 - [ ] Login Identity
-- [ ] Publicar toma y listarla
-- [ ] Moderación (rol admin) si aplica
+- [ ] Publicar toma de rabino y que aparezca de inmediato como referencia
+- [ ] Varios rabinos de la misma Aliá: se puede elegir versión
+- [ ] Moderación: admin puede retirar una referencia publicada
 
 ## Criterio mínimo
 Un usuario nuevo encuentra su Aliá, oye tropos o una grabación, y sube al modo Sefer.

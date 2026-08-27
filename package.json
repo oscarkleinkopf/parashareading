@@ -7,7 +7,8 @@
   "scripts": {
     "build": "esbuild frontend/identity-entry.mjs --bundle --format=esm --outfile=assets/netlify-identity.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "netlify database migrations apply"
+    "db:migrate": "netlify database migrations apply",
+    "test": "node tests/recording-versions.test.cjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.13",

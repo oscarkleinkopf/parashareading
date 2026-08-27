@@ -27,6 +27,7 @@ const App = {
         activeTranslationList: [],
         audioMode: 'hebrew', // 'trope', 'hebrew' or 'spanish'
         audioSource: 'synth', // 'synth' | 'real'
+        audioSourceValue: 'synth', // valor del <select>: synth | version:<id> | real:<id>
         hidePhonetics: false,
         hideTranslation: false,
         loopVerse: false,
@@ -1696,6 +1697,13 @@ const App = {
 
     // Delegated handler for the parallel-view verse list.
     handleVerseContainerClick(e) {
+        const row = e.target.closest('.verse-row');
+        const idx = row ? parseInt(row.dataset.verseIndex, 10) : NaN;
+        if (!isNaN(idx) && window.CantoralRecordings && CantoralRecordings.handleVerseMarkClick &&
+            CantoralRecordings.handleVerseMarkClick(idx)) {
+            return;
+        }
+
         const wordEl = e.target.closest('.heb-word[data-trope-key]');
         if (wordEl) {
             const key = wordEl.getAttribute('data-trope-key');
@@ -1706,11 +1714,7 @@ const App = {
         // The mark button manages its own click; ignore it here.
         if (e.target.closest('.verse-complete-btn')) return;
 
-        const row = e.target.closest('.verse-row');
-        if (row) {
-            const idx = parseInt(row.dataset.verseIndex, 10);
-            if (!isNaN(idx)) this.playFromVerse(idx);
-        }
+        if (row && !isNaN(idx)) this.playFromVerse(idx);
     },
 
     // Delegated handler for a Hebrew word click (used by the flashcard view).
@@ -1840,10 +1844,11 @@ const App = {
     },
 
     setAudioSource(value) {
-        const isReal = value && value !== 'synth';
-        const recordingId = isReal ? String(value).replace(/^real:/, '') : null;
-        const same = this.state.audioSource === (isReal ? 'real' : 'synth') &&
-            this.state.realRecordingId === recordingId;
+        const next = value || 'synth';
+        const isReal = next !== 'synth';
+        const recordingId = next.startsWith('real:') ? next.slice(5) : null;
+        const same = this.state.audioSourceValue === next;
+        this.state.audioSourceValue = next;
         this.state.audioSource = isReal ? 'real' : 'synth';
         this.state.realRecordingId = recordingId;
         const modeSelect = document.getElementById('playerAudioModeSelect');
@@ -2045,6 +2050,10 @@ const App = {
         if (!this.state.isPlaying) return;
         if (this.state.loopVerse) {
             if (window.CantoralRecordings) CantoralRecordings.playForVerse(this.state.playIndex);
+            return;
+        }
+        if (window.CantoralRecordings && CantoralRecordings.advanceAfterClip &&
+            CantoralRecordings.advanceAfterClip()) {
             return;
         }
         if (this.state.isLooping) {

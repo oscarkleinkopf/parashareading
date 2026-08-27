@@ -1,15 +1,16 @@
-const CACHE_NAME = 'cantoral-tora-shell-v11';
-const API_CACHE_NAME = 'cantoral-tora-api-v11';
+const CACHE_NAME = 'cantoral-tora-shell-v12';
+const API_CACHE_NAME = 'cantoral-tora-api-v12';
 
 // Precache the exact (versioned) URLs the page requests, so the very first offline
 // load works and there is no bare-vs-versioned mismatch.
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
-  'styles.css?v=4.0',
-  'app.js?v=4.0',
+  'styles.css?v=4.1',
+  'app.js?v=4.1',
   'trope_synthesizer.js?v=3.1',
-  'recordings.js?v=3.8',
+  'recording-versions.js?v=1.0',
+  'recordings.js?v=4.1',
   'assets/netlify-identity.js?v=3.1',
   'manifest.json',
   'icon.png'
