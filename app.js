@@ -889,6 +889,10 @@ const App = {
         const seferBtn = document.getElementById('btnSeferMode');
         if (seferBtn) seferBtn.addEventListener('click', () => this.toggleConsonantsOnly());
 
+        document.querySelectorAll('.help-level-btn').forEach((btn) => {
+            btn.addEventListener('click', () => this.setHelpLevel(btn.dataset.helpLevel));
+        });
+
         this.enhanceKeyboardAccess();
     },
 
@@ -1877,6 +1881,45 @@ const App = {
         this.syncMemorizationUi();
     },
 
+    currentHelpLevel() {
+        if (this.state.consonantsOnly) return 'sefer';
+        if (this.state.hidePhonetics && !this.state.hideTranslation && !this.state.hideTropes) {
+            return 'noPhonetics';
+        }
+        if (!this.state.hidePhonetics && !this.state.hideTranslation && !this.state.hideTropes && !this.state.consonantsOnly) {
+            return 'full';
+        }
+        return 'custom';
+    },
+
+    setHelpLevel(level) {
+        if (level === 'full') {
+            this.state.hidePhonetics = false;
+            this.state.hideTranslation = false;
+            this.state.hideTropes = false;
+            this.state.consonantsOnly = false;
+        } else if (level === 'noPhonetics') {
+            this.state.hidePhonetics = true;
+            this.state.hideTranslation = false;
+            this.state.hideTropes = false;
+            this.state.consonantsOnly = false;
+        } else if (level === 'sefer') {
+            this.state.hidePhonetics = true;
+            this.state.hideTranslation = true;
+            this.state.hideTropes = false;
+            this.state.consonantsOnly = true;
+        } else {
+            return;
+        }
+        this.syncMemorizationUi();
+        const labels = {
+            full: 'Nivel 1: hebreo vocalizado, fonética y traducción.',
+            noPhonetics: 'Nivel 2: sin fonética. Lee el hebreo con niqud.',
+            sefer: 'Nivel 3: como el Sefer — solo consonantes, sin vocales ni tropos.'
+        };
+        this.showNotification(labels[level]);
+    },
+
     MEMO_PREFS_KEY: 'cantoralMemorizationPrefs',
 
     loadMemorizationPrefs() {
@@ -1964,6 +2007,25 @@ const App = {
         document.body.classList.toggle('consonants-only', !!this.state.consonantsOnly);
         this.refreshHebrewDisplay();
         this.saveMemorizationPrefs();
+        this.syncHelpLevelTabs();
+    },
+
+    syncHelpLevelTabs() {
+        const level = this.currentHelpLevel();
+        const hint = document.getElementById('helpLevelHint');
+        document.querySelectorAll('.help-level-btn').forEach((btn) => {
+            const active = btn.dataset.helpLevel === level;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        if (hint) {
+            hint.textContent = {
+                full: 'Nivel 1: ves hebreo vocalizado, fonética y traducción. Canta mirando todo.',
+                noPhonetics: 'Nivel 2: oculta la fonética. Intenta leer el hebreo con niqud.',
+                sefer: 'Nivel 3: como el rollo — solo consonantes. Recita de memoria si puedes.',
+                custom: 'Ajustes finos activos. Vuelve a 1, 2 o 3 para un camino guiado.'
+            }[level];
+        }
     },
 
     // Called by CantoralRecordings while a real take is playing.

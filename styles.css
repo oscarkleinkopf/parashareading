@@ -514,6 +514,49 @@ button:focus-visible,
     padding: 16px;
 }
 
+.help-level-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(212, 175, 55, 0.18);
+    background: rgba(212, 175, 55, 0.06);
+}
+
+.help-level-hint {
+    margin: 4px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    max-width: 56ch;
+}
+
+.help-level-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.help-level-btn {
+    padding: 8px 12px;
+    border-radius: var(--radius-xs);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(2, 4, 10, 0.35);
+    color: var(--color-text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.help-level-btn.active {
+    background: var(--accent-gold-gradient);
+    border-color: var(--accent-gold);
+    color: #060913;
+}
+
 .practice-kicker {
     color: var(--accent-gold);
     font-family: var(--font-ui);

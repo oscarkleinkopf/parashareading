@@ -30,7 +30,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- Hojas de Estilo -->
-    <link rel="stylesheet" href="styles.css?v=3.9">
+    <link rel="stylesheet" href="styles.css?v=4.0">
 </head>
 <body>
 
@@ -276,6 +276,18 @@
                     </div>
                 </div>
 
+                <div class="help-level-panel" id="helpLevelPanel">
+                    <div class="help-level-copy">
+                        <div class="practice-kicker">Memorización progresiva</div>
+                        <p class="help-level-hint" id="helpLevelHint">Empieza con toda la ayuda y quítala cuando ya recuerdes el versículo, hasta leer como en el Sefer.</p>
+                    </div>
+                    <div class="help-level-tabs" role="tablist" aria-label="Nivel de ayuda de lectura">
+                        <button type="button" class="help-level-btn active" id="helpLevelFull" data-help-level="full" role="tab" aria-selected="true">1. Con ayuda</button>
+                        <button type="button" class="help-level-btn" id="helpLevelNoPhonetics" data-help-level="noPhonetics" role="tab" aria-selected="false">2. Sin fonética</button>
+                        <button type="button" class="help-level-btn" id="helpLevelSefer" data-help-level="sefer" role="tab" aria-selected="false">3. Como el Sefer</button>
+                    </div>
+                </div>
+
                 <div class="practice-panel" id="practicePanel">
                     <div class="practice-copy">
                         <div class="practice-kicker">Modo practica guiada</div>
@@ -476,7 +488,7 @@
     <script src="trope_synthesizer.js?v=3.1"></script>
     
     <!-- Script Principal de la Lógica de la Aplicación -->
-    <script src="app.js?v=3.9"></script>
+    <script src="app.js?v=4.0"></script>
 
     <!-- SDK de Netlify Identity empaquetado (expone window.NetlifyIdentity) -->
     <script type="module" src="assets/netlify-identity.js?v=3.1"></script>
