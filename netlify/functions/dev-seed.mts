@@ -1,6 +1,6 @@
 import type { Context, Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../db/index";
 import { recordings } from "../../db/schema";
 
@@ -49,30 +49,64 @@ export default async (req: Request, context: Context) => {
   await db.delete(recordings).where(and(
     eq(recordings.parashaId, parasha),
     eq(recordings.aliyah, aliyah),
-    eq(recordings.uploaderId, "demo"),
+    inArray(recordings.uploaderId, ["demo", "demo-a", "demo-b"]),
   ));
 
-  const seconds = 6;
-  const wav = makeWav(seconds, 210);
-  const blobKey = `${parasha}/${aliyah}/demo-${Date.now()}`;
   const store = getStore({ name: "recordings" });
-  await store.set(blobKey, new Uint8Array(wav) as unknown as ArrayBuffer, { metadata: { contentType: "audio/wav" } });
+  const stamp = Date.now();
 
-  const [created] = await db.insert(recordings).values({
-    parashaId: parasha,
-    aliyah: aliyah,
-    verseStart: 1,
-    verseEnd: 3,
-    blobKey,
-    contentType: "audio/wav",
-    durationMs: seconds * 1000,
-    uploaderId: "demo",
-    uploaderName: "Rabino Demo",
-    tradition: "ashkenazi",
-    status: "approved",
-  }).returning();
+  async function insertClip(opts: {
+    start: number;
+    end: number;
+    freq: number;
+    seconds: number;
+    uploaderId: string;
+    uploaderName: string;
+    createdAt: Date;
+    suffix: string;
+  }) {
+    const wav = makeWav(opts.seconds, opts.freq);
+    const blobKey = `${parasha}/${aliyah}/${opts.uploaderId}-${opts.suffix}-${stamp}`;
+    await store.set(blobKey, new Uint8Array(wav) as unknown as ArrayBuffer, {
+      metadata: { contentType: "audio/wav" },
+    });
+    const [created] = await db.insert(recordings).values({
+      parashaId: parasha,
+      aliyah,
+      verseStart: opts.start,
+      verseEnd: opts.end,
+      blobKey,
+      contentType: "audio/wav",
+      durationMs: opts.seconds * 1000,
+      uploaderId: opts.uploaderId,
+      uploaderName: opts.uploaderName,
+      tradition: "ashkenazi",
+      status: "approved",
+      createdAt: opts.createdAt,
+    }).returning();
+    return created;
+  }
 
-  return new Response(JSON.stringify({ seeded: created }), {
+  // Dos rabinos + un parche del primero (versículo 2) para probar el selector de versiones.
+  const seeded = [
+    await insertClip({
+      start: 1, end: 3, freq: 210, seconds: 6,
+      uploaderId: "demo-a", uploaderName: "Rabino Demo A",
+      createdAt: new Date("2026-01-01T00:00:00Z"), suffix: "full",
+    }),
+    await insertClip({
+      start: 2, end: 2, freq: 330, seconds: 2,
+      uploaderId: "demo-a", uploaderName: "Rabino Demo A",
+      createdAt: new Date("2026-02-01T00:00:00Z"), suffix: "patch",
+    }),
+    await insertClip({
+      start: 1, end: 3, freq: 160, seconds: 6,
+      uploaderId: "demo-b", uploaderName: "Rabino Demo B",
+      createdAt: new Date("2026-01-15T00:00:00Z"), suffix: "full",
+    }),
+  ];
+
+  return new Response(JSON.stringify({ seeded }), {
     headers: { "content-type": "application/json" },
   });
 };

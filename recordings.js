@@ -1,9 +1,10 @@
 // Cantoral de Torá — Grabaciones de la comunidad
 // Integra Netlify Identity (login de rabinos), el aporte de grabaciones (MediaRecorder),
-// la reproducción de grabaciones reales sincronizada por versículo y la moderación (admin).
-// El frontend sigue en JS vanilla; el SDK de Identity llega vía window.NetlifyIdentity.
+// la reproducción de versiones (toma completa + parches por versículo) y la moderación.
 (function () {
     'use strict';
+
+    const Versions = window.RecordingVersions || {};
 
     const Recordings = {
         state: {
@@ -14,22 +15,27 @@
             chunks: [],
             recordedBlob: null,
             recordStartedAt: 0,
+            recordDurationMs: 0,
             realAudio: null,
             realTimer: null,
             approvedItems: [],
-            realGeneration: 0
+            realGeneration: 0,
+            markMode: false,
+            recRange: { start: 1, end: 1, anchor: null },
+            playingClip: null,
+            playingRunEnd: -1
         },
 
         api: {
             list: (p, a) => `/api/recordings?parasha=${encodeURIComponent(p)}&aliyah=${encodeURIComponent(a)}`,
             upload: '/api/recordings',
+            align: '/api/recordings/align',
             audio: (id) => `/api/recordings/${id}/audio`,
             moderate: (id) => `/api/recordings/${id}/moderate`,
             queue: (status) => `/api/moderation/recordings?status=${encodeURIComponent(status)}`
         },
 
         init() {
-            // El SDK puede cargar de forma asíncrona (módulo). Esperamos su señal.
             if (window.NetlifyIdentity) {
                 this.onIdentityReady();
             } else {
@@ -39,23 +45,24 @@
             const authBtn = document.getElementById('btnAuthToggle');
             if (authBtn) authBtn.addEventListener('click', () => this.toggleAuthPanel());
 
-            // Reaccionar cuando app.js termina de renderizar una aliyá.
             document.addEventListener('cantoral:aliyah-rendered', (e) => {
                 const d = e.detail || {};
+                const verseCount = d.verseCount || 0;
                 this.state.current = {
                     parashaId: d.parashaId || null,
-                    // La app usa 'maftir'; la base de datos usa 'M'.
                     aliyah: d.aliyah === 'maftir' ? 'M' : d.aliyah,
-                    verseCount: d.verseCount || 0
+                    verseCount
                 };
+                this.state.recRange = { start: 1, end: Math.max(1, verseCount), anchor: null };
+                this.state.markMode = false;
                 this.refreshRecordingsPanel();
+                this.applyRecordRangeHighlight();
             });
         },
 
         onIdentityReady() {
             this.state.identity = window.NetlifyIdentity;
             const id = this.state.identity;
-            // Procesa callbacks de OAuth / confirmación / invitación al cargar.
             Promise.resolve()
                 .then(() => (id.handleAuthCallback ? id.handleAuthCallback() : null))
                 .catch(() => null)
@@ -85,6 +92,10 @@
         },
         isAdmin() {
             return this.roles().includes('admin');
+        },
+        isRecording() {
+            const mr = this.state.mediaRecorder;
+            return !!(mr && mr.state === 'recording');
         },
 
         updateAuthButton() {
@@ -216,19 +227,25 @@
             this.state.approvedItems = items;
             this.syncPlayerSourceSelect(items);
 
-            const listHtml = items.length
-                ? items.map((r) => this.recordingRow(r)).join('')
-                : '<p style="color:var(--color-text-muted);font-size:14px;">Aún no hay grabaciones aprobadas para esta aliyá. Mientras tanto, usa el audio generado con melodía sincronizada.</p>';
+            const groups = Versions.groupByUploader ? Versions.groupByUploader(items) : [];
+            const verseCount = this.state.current.verseCount || 0;
+            const listHtml = groups.length
+                ? groups.map((g) => this.versionCard(g, verseCount)).join('')
+                : '<p style="color:var(--color-text-muted);font-size:14px;">Aún no hay grabaciones de referencia para esta aliyá. Mientras tanto, usa el audio generado con melodía sincronizada.</p>';
 
             section.innerHTML = `
                 <h3 class="section-title">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                    Grabaciones de la comunidad
+                    Grabaciones de referencia
                 </h3>
+                <p class="recordings-lead">Cada rabino deja una <strong>versión</strong> permanente. Si corrige un error, graba solo esos versículos: al escuchar, la app usa el parche más reciente en ese tramo.</p>
                 <div class="recordings-list">${listHtml}</div>
                 <div id="contributeArea" style="margin-top:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;"></div>
             `;
 
+            section.querySelectorAll('[data-play-version]').forEach((btn) => {
+                btn.addEventListener('click', () => this.useVersionInPlayer(btn.getAttribute('data-play-version')));
+            });
             section.querySelectorAll('[data-play-rec]').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const id = btn.getAttribute('data-play-rec');
@@ -240,21 +257,39 @@
             });
 
             this.renderContributeArea();
+            this.applyRecordRangeHighlight();
         },
 
-        recordingRow(r) {
-            const range = (r.verseStart && r.verseEnd)
-                ? `Versículos ${r.verseStart}–${r.verseEnd}`
-                : 'Aliyá completa';
+        versionCard(group, verseCount) {
+            const summary = Versions.coverageSummary
+                ? Versions.coverageSummary(group.clips, verseCount)
+                : { covered: 0, total: verseCount };
+            const coverTxt = summary.total
+                ? `${summary.covered} de ${summary.total} versículos`
+                : `${group.clips.length} toma(s)`;
+            const clips = (group.clips || []).map((r) => {
+                const range = Versions.formatRangeLabel
+                    ? Versions.formatRangeLabel(r, verseCount)
+                    : ((r.verseStart && r.verseEnd) ? `Versículos ${r.verseStart}–${r.verseEnd}` : 'Aliá completa');
+                const isPatch = r.verseStart != null && r.verseEnd != null &&
+                    !(r.verseStart === 1 && r.verseEnd === verseCount);
+                return `
+                    <div class="recording-clip-row">
+                        <span>${this.escape(range)}${isPatch ? ' · corrección' : ''}</span>
+                        <button class="btn-secondary" data-play-rec="${r.id}" data-vs="${r.verseStart || ''}" data-ve="${r.verseEnd || ''}" data-ms="${r.durationMs || ''}" style="padding:6px 12px;">Solo este tramo</button>
+                    </div>`;
+            }).join('');
             return `
-                <div class="recording-item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);margin-bottom:8px;">
-                    <div>
-                        <div style="font-weight:600;">${this.escape(r.uploaderName || 'Rabino')}</div>
-                        <div style="font-size:12px;color:var(--color-text-muted);">${range} · ${this.escape(r.tradition || 'ashkenazi')}</div>
+                <div class="recording-version-card">
+                    <div class="recording-version-head">
+                        <div>
+                            <div class="recording-version-name">${this.escape(group.uploaderName || 'Rabino')}</div>
+                            <div class="recording-version-meta">${this.escape(coverTxt)} · referencia pública</div>
+                        </div>
+                        <button class="btn-primary" data-play-version="${this.escape(group.key)}" style="padding:8px 16px;">▶ Escuchar versión</button>
                     </div>
-                    <button class="btn-primary" data-play-rec="${r.id}" data-vs="${r.verseStart || ''}" data-ve="${r.verseEnd || ''}" data-ms="${r.durationMs || ''}" style="padding:8px 16px;">▶ Voz real</button>
-                </div>
-            `;
+                    ${clips}
+                </div>`;
         },
 
         renderContributeArea() {
@@ -262,7 +297,7 @@
             if (!area) return;
 
             if (!this.state.user) {
-                area.innerHTML = `<p style="font-size:13px;color:var(--color-text-muted);">¿Eres rabino/a o lector capacitado? <button class="btn-secondary" id="contributeLogin" style="padding:6px 12px;">Ingresa</button> para aportar tu grabación.</p>`;
+                area.innerHTML = `<p style="font-size:13px;color:var(--color-text-muted);">¿Eres rabino/a o lector capacitado? <button class="btn-secondary" id="contributeLogin" style="padding:6px 12px;">Ingresa</button> para dejar una versión de referencia.</p>`;
                 const b = document.getElementById('contributeLogin');
                 if (b) b.addEventListener('click', () => this.toggleAuthPanel());
                 return;
@@ -273,29 +308,254 @@
             }
 
             const total = this.state.current.verseCount || 0;
+            const range = this.normalizedRange();
+            const markOn = this.state.markMode ? ' practice-btn-on' : '';
             area.innerHTML = `
-                <h4 style="margin:0 0 10px;font-family:var(--font-ui);color:var(--accent-gold);">Aportar mi grabación</h4>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                <h4 style="margin:0 0 8px;font-family:var(--font-ui);color:var(--accent-gold);">Grabar o corregir un tramo</h4>
+                <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 12px;line-height:1.45;">
+                    No hace falta repetir la Aliá entera. Al detener, la app intenta <strong>reconocer sola</strong> qué versículos cantaste (transcripción).
+                    También puedes marcarlos a mano. Un error se corrige regrabando solo esa fracción.
+                </p>
+                <div class="rec-range-toolbar">
                     <div>
-                        <label class="auth-label" for="recVerseStart">Desde versículo</label>
-                        <input class="input-control" type="number" id="recVerseStart" min="1" max="${total || 1}" value="1" style="width:110px;">
+                        <label class="auth-label" for="recVerseStart">Desde</label>
+                        <input class="input-control" type="number" id="recVerseStart" min="1" max="${total || 1}" value="${range.start}" style="width:90px;">
                     </div>
                     <div>
-                        <label class="auth-label" for="recVerseEnd">Hasta versículo</label>
-                        <input class="input-control" type="number" id="recVerseEnd" min="1" max="${total || 1}" value="${total || 1}" style="width:110px;">
+                        <label class="auth-label" for="recVerseEnd">Hasta</label>
+                        <input class="input-control" type="number" id="recVerseEnd" min="1" max="${total || 1}" value="${range.end}" style="width:90px;">
                     </div>
-                    <button class="btn-primary" id="recToggleBtn" style="padding:10px 18px;">● Grabar</button>
+                    <button class="btn-secondary${markOn}" id="recMarkModeBtn" type="button" aria-pressed="${this.state.markMode ? 'true' : 'false'}" style="padding:10px 14px;">Marcar en el texto</button>
+                    <button class="btn-secondary" id="recThisVerseBtn" type="button" style="padding:10px 14px;">Este versículo</button>
+                    <button class="btn-secondary" id="recFullAliyahBtn" type="button" style="padding:10px 14px;">Aliá completa</button>
+                    <button class="btn-secondary" id="recDetectBtn" type="button" style="padding:10px 14px;">Detectar tramo</button>
+                </div>
+                <p id="recRangeHint" class="rec-range-hint">${this.rangeHintText(range, total)}</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+                    <button class="btn-primary" id="recToggleBtn" style="padding:10px 18px;">● Grabar tramo</button>
+                    <label class="btn-secondary rec-file-label" for="recFileInput">Subir archivo</label>
+                    <input class="hidden" type="file" id="recFileInput" accept="audio/*">
                 </div>
                 <div id="recStatus" role="status" aria-live="polite" style="min-height:18px;font-size:13px;color:var(--color-text-secondary);margin-top:8px;"></div>
                 <audio id="recPreview" controls class="hidden" style="width:100%;margin-top:8px;"></audio>
                 <div id="recUploadWrap" class="hidden" style="margin-top:8px;">
-                    <button class="btn-primary" id="recUploadBtn" style="padding:8px 16px;">Enviar grabación</button>
+                    <button class="btn-primary" id="recUploadBtn" style="padding:8px 16px;">Publicar como referencia</button>
                 </div>
             `;
 
             document.getElementById('recToggleBtn').addEventListener('click', () => this.toggleRecording());
             const up = document.getElementById('recUploadBtn');
             if (up) up.addEventListener('click', () => this.uploadRecording());
+            document.getElementById('recMarkModeBtn').addEventListener('click', () => this.toggleMarkMode());
+            document.getElementById('recThisVerseBtn').addEventListener('click', () => this.markCurrentVerseRange());
+            document.getElementById('recFullAliyahBtn').addEventListener('click', () => this.markFullAliyah());
+            document.getElementById('recVerseStart').addEventListener('change', () => this.readRangeInputs());
+            document.getElementById('recVerseEnd').addEventListener('change', () => this.readRangeInputs());
+            document.getElementById('recDetectBtn').addEventListener('click', () => this.detectRecordedRange());
+            const file = document.getElementById('recFileInput');
+            if (file) file.addEventListener('change', (ev) => this.handlePickedFile(ev));
+        },
+
+        normalizedRange() {
+            const total = this.state.current.verseCount || 1;
+            let start = parseInt(this.state.recRange.start, 10);
+            let end = parseInt(this.state.recRange.end, 10);
+            if (isNaN(start) || start < 1) start = 1;
+            if (isNaN(end) || end < 1) end = total;
+            start = Math.min(start, total);
+            end = Math.min(end, total);
+            if (end < start) { const t = start; start = end; end = t; }
+            return { start, end };
+        },
+
+        rangeHintText(range, total) {
+            if (!total) return 'Carga una Aliá para elegir versículos.';
+            if (range.start === 1 && range.end === total) {
+                return `Vas a grabar la Aliá completa (versículos 1–${total}).`;
+            }
+            if (range.start === range.end) {
+                return `Vas a grabar solo el versículo ${range.start}. Eso corrige ese versículo en tu versión.`;
+            }
+            return `Vas a grabar los versículos ${range.start}–${range.end}. Ese tramo reemplaza el anterior en tu versión.`;
+        },
+
+        syncRangeInputs() {
+            const range = this.normalizedRange();
+            this.state.recRange.start = range.start;
+            this.state.recRange.end = range.end;
+            const vs = document.getElementById('recVerseStart');
+            const ve = document.getElementById('recVerseEnd');
+            if (vs) vs.value = String(range.start);
+            if (ve) ve.value = String(range.end);
+            const hint = document.getElementById('recRangeHint');
+            if (hint) hint.textContent = this.rangeHintText(range, this.state.current.verseCount || 0);
+            this.applyRecordRangeHighlight();
+        },
+
+        readRangeInputs() {
+            const vs = document.getElementById('recVerseStart');
+            const ve = document.getElementById('recVerseEnd');
+            this.state.recRange.anchor = null;
+            this.state.recRange.start = vs ? parseInt(vs.value, 10) : this.state.recRange.start;
+            this.state.recRange.end = ve ? parseInt(ve.value, 10) : this.state.recRange.end;
+            this.syncRangeInputs();
+        },
+
+        toggleMarkMode() {
+            this.state.markMode = !this.state.markMode;
+            this.state.recRange.anchor = null;
+            const btn = document.getElementById('recMarkModeBtn');
+            if (btn) {
+                btn.classList.toggle('practice-btn-on', this.state.markMode);
+                btn.setAttribute('aria-pressed', this.state.markMode ? 'true' : 'false');
+            }
+            document.body.classList.toggle('marking-record-range', this.state.markMode && this.canContribute());
+            const status = document.getElementById('recStatus');
+            if (status) {
+                status.textContent = this.state.markMode
+                    ? 'Clic en un versículo para el inicio, otro clic para el final.'
+                    : '';
+            }
+            this.applyRecordRangeHighlight();
+        },
+
+        markCurrentVerseRange() {
+            const idx = (window.App && typeof App.state.activeVerseIndex === 'number')
+                ? App.state.activeVerseIndex
+                : ((window.App && typeof App.state.playIndex === 'number') ? App.state.playIndex : 0);
+            const n = Math.max(1, idx + 1);
+            this.state.recRange = { start: n, end: n, anchor: null };
+            this.syncRangeInputs();
+        },
+
+        markFullAliyah() {
+            const total = this.state.current.verseCount || 1;
+            this.state.recRange = { start: 1, end: total, anchor: null };
+            this.syncRangeInputs();
+        },
+
+        // Llamado desde app.js al hacer clic en un versículo. true = no reproducir.
+        handleVerseMarkClick(verseIndex) {
+            if (!this.canContribute() || !this.state.markMode) return false;
+            if (this.isRecording()) return true;
+            const n = verseIndex + 1;
+            const r = this.state.recRange;
+            if (r.anchor == null) {
+                this.state.recRange = { start: n, end: n, anchor: n };
+            } else {
+                const a = r.anchor;
+                this.state.recRange = {
+                    start: Math.min(a, n),
+                    end: Math.max(a, n),
+                    anchor: null
+                };
+                this.state.markMode = false;
+                document.body.classList.remove('marking-record-range');
+                const btn = document.getElementById('recMarkModeBtn');
+                if (btn) {
+                    btn.classList.remove('practice-btn-on');
+                    btn.setAttribute('aria-pressed', 'false');
+                }
+            }
+            this.syncRangeInputs();
+            const status = document.getElementById('recStatus');
+            if (status) {
+                const range = this.normalizedRange();
+                status.textContent = this.state.recRange.anchor
+                    ? `Inicio: versículo ${range.start}. Clic en el versículo final.`
+                    : `Tramo marcado: ${this.rangeHintText(range, this.state.current.verseCount || 0)}`;
+            }
+            return true;
+        },
+
+        applyRecordRangeHighlight() {
+            const canShow = this.canContribute() && this.state.current.verseCount;
+            document.body.classList.toggle('marking-record-range', !!(this.state.markMode && canShow));
+            const range = canShow ? this.normalizedRange() : null;
+            const recording = this.isRecording();
+            document.querySelectorAll('.verse-row').forEach((row) => {
+                const idx = parseInt(row.dataset.verseIndex, 10);
+                const n = idx + 1;
+                const inRange = !!(range && n >= range.start && n <= range.end);
+                row.classList.toggle('verse-in-record-range', inRange);
+                row.classList.toggle('verse-recording-now', inRange && recording);
+            });
+        },
+
+        handlePickedFile(ev) {
+            const file = ev.target && ev.target.files && ev.target.files[0];
+            if (!file) return;
+            this.state.recordedBlob = file;
+            this.state.recordDurationMs = 0;
+            const preview = document.getElementById('recPreview');
+            if (preview) {
+                preview.src = URL.createObjectURL(file);
+                preview.classList.remove('hidden');
+            }
+            const wrap = document.getElementById('recUploadWrap');
+            if (wrap) wrap.classList.remove('hidden');
+            const status = document.getElementById('recStatus');
+            if (status) status.textContent = `Archivo listo (${file.name}). Detectando tramo...`;
+            this.detectRecordedRange();
+        },
+
+        verseTextsForAlign() {
+            const list = (window.App && App.state && App.state.activeHebrewList) || [];
+            return list.map((text, i) => ({ n: i + 1, text: String(text || '') }));
+        },
+
+        async detectRecordedRange() {
+            const status = document.getElementById('recStatus');
+            const blob = this.state.recordedBlob;
+            if (!blob) {
+                if (status) status.textContent = 'Graba o sube un audio para detectar el tramo.';
+                return;
+            }
+            const verses = this.verseTextsForAlign();
+            if (!verses.length) {
+                if (status) status.textContent = 'Carga una Aliá para alinear el audio con los versículos.';
+                return;
+            }
+
+            const form = new FormData();
+            const file = blob instanceof File
+                ? blob
+                : new File([blob], 'grabacion.webm', { type: blob.type || 'audio/webm' });
+            form.append('audio', file);
+            form.append('verses', JSON.stringify(verses));
+
+            if (status) status.textContent = 'Escuchando la toma para reconocer el tramo...';
+            try {
+                const res = await fetch(this.api.align, {
+                    method: 'POST',
+                    body: form,
+                    credentials: 'include',
+                    headers: await this.authHeaders()
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (status) status.textContent = data.error || 'No se pudo detectar el tramo. Márcalo a mano.';
+                    return;
+                }
+                if (data.detected && data.verseStart && data.verseEnd) {
+                    this.state.recRange = {
+                        start: data.verseStart,
+                        end: data.verseEnd,
+                        anchor: null
+                    };
+                    this.syncRangeInputs();
+                    const range = this.normalizedRange();
+                    if (status) {
+                        status.textContent = range.start === range.end
+                            ? `Reconocido: versículo ${range.start}. Revísalo y publícalo (o corrige el rango).`
+                            : `Reconocido: versículos ${range.start}–${range.end}. Revísalo y publícalo (o corrige el rango).`;
+                    }
+                } else if (status) {
+                    status.textContent = data.message || 'No se reconoció el tramo. Márcalo a mano.';
+                }
+            } catch (e) {
+                if (status) status.textContent = 'No se pudo detectar el tramo (red). Márcalo a mano.';
+            }
         },
 
         // ---------- MediaRecorder ----------
@@ -320,6 +580,7 @@
                 this.state.mediaRecorder = recorder;
                 this.state.chunks = [];
                 this.state.recordStartedAt = Date.now();
+                this.applyRecordRangeHighlight();
 
                 recorder.ondataavailable = (e) => { if (e.data.size > 0) this.state.chunks.push(e.data); };
                 recorder.onstop = () => {
@@ -327,22 +588,36 @@
                     const blob = new Blob(this.state.chunks, { type: 'audio/webm' });
                     this.state.recordedBlob = blob;
                     this.state.recordDurationMs = Date.now() - this.state.recordStartedAt;
+                    this.state.mediaRecorder = null;
                     const preview = document.getElementById('recPreview');
                     if (preview) {
                         preview.src = URL.createObjectURL(blob);
                         preview.classList.remove('hidden');
                     }
-                    document.getElementById('recUploadWrap').classList.remove('hidden');
-                    if (btn) { btn.textContent = '● Grabar'; btn.classList.remove('recording'); }
-                    if (status) status.textContent = 'Grabación lista. Escúchala y envíala.';
+                    const wrap = document.getElementById('recUploadWrap');
+                    if (wrap) wrap.classList.remove('hidden');
+                    if (btn) { btn.textContent = '● Grabar tramo'; btn.classList.remove('recording'); }
+                    if (status) status.textContent = 'Grabación lista. Reconociendo qué versículos cantaste...';
+                    this.applyRecordRangeHighlight();
+                    this.detectRecordedRange();
                 };
 
                 recorder.start();
+                const range = this.normalizedRange();
                 if (btn) { btn.textContent = '■ Detener'; btn.classList.add('recording'); }
-                if (status) status.textContent = 'Grabando... canta la porción con calma.';
+                if (status) status.textContent = `Grabando ${this.rangeHintText(range, this.state.current.verseCount || 0)}`;
             } catch (err) {
                 if (status) status.textContent = 'No se pudo acceder al micrófono.';
             }
+        },
+
+        async authHeaders() {
+            const headers = {};
+            try {
+                const match = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
+                if (match) headers.Authorization = 'Bearer ' + decodeURIComponent(match[1]);
+            } catch (e) { /* ignore */ }
+            return headers;
         },
 
         async uploadRecording() {
@@ -351,25 +626,40 @@
             if (!blob) return;
 
             const { parashaId, aliyah } = this.state.current;
-            const vs = document.getElementById('recVerseStart');
-            const ve = document.getElementById('recVerseEnd');
+            const range = this.normalizedRange();
 
             const form = new FormData();
-            form.append('audio', new File([blob], 'grabacion.webm', { type: 'audio/webm' }));
+            const file = blob instanceof File
+                ? blob
+                : new File([blob], 'grabacion.webm', { type: blob.type || 'audio/webm' });
+            form.append('audio', file);
             form.append('parasha', parashaId);
             form.append('aliyah', aliyah);
-            if (vs && vs.value) form.append('verseStart', vs.value);
-            if (ve && ve.value) form.append('verseEnd', ve.value);
+            form.append('verseStart', String(range.start));
+            form.append('verseEnd', String(range.end));
             if (this.state.recordDurationMs) form.append('durationMs', String(this.state.recordDurationMs));
             form.append('tradition', 'ashkenazi');
 
-            if (status) status.textContent = 'Enviando...';
+            if (status) status.textContent = 'Publicando referencia...';
             try {
-                const res = await fetch(this.api.upload, { method: 'POST', body: form });
+                const res = await fetch(this.api.upload, {
+                    method: 'POST',
+                    body: form,
+                    credentials: 'include',
+                    headers: await this.authHeaders()
+                });
                 if (res.ok) {
-                    if (status) status.textContent = '¡Enviada! Quedó pendiente de aprobación por un administrador.';
+                    const data = await res.json().catch(() => ({}));
+                    const published = data.recording && data.recording.status === 'approved';
+                    if (status) {
+                        status.textContent = published
+                            ? 'Publicada. Ya es referencia para quien estudie esta Aliá. Un parche nuevo en el mismo tramo sustituye al anterior.'
+                            : 'Enviada. Quedó pendiente de aprobación.';
+                    }
                     this.state.recordedBlob = null;
-                    document.getElementById('recUploadWrap').classList.add('hidden');
+                    const wrap = document.getElementById('recUploadWrap');
+                    if (wrap) wrap.classList.add('hidden');
+                    this.refreshRecordingsPanel();
                 } else {
                     const err = await res.json().catch(() => ({}));
                     if (status) status.textContent = err.error || `No se pudo enviar (HTTP ${res.status}).`;
@@ -379,67 +669,87 @@
             }
         },
 
-        // ---------- Reproducción de grabación real, sincronizada por versículo ----------
+        // ---------- Reproducción de versión / tramo ----------
+        sourceSelectValue() {
+            if (window.App && App.state.audioSourceValue) return App.state.audioSourceValue;
+            const sel = document.getElementById('playerSourceSelect');
+            return sel ? sel.value : 'synth';
+        },
+
+        clipsForSelection() {
+            const items = this.state.approvedItems || [];
+            const val = this.sourceSelectValue();
+            if (!val || val === 'synth') return [];
+            if (val.startsWith('version:')) {
+                const key = val.slice(8);
+                return items.filter((r) => Versions.versionKey(r) === key);
+            }
+            if (val.startsWith('real:')) {
+                const id = val.slice(5);
+                return items.filter((r) => String(r.id) === String(id));
+            }
+            return items;
+        },
+
         syncPlayerSourceSelect(items) {
             const sel = document.getElementById('playerSourceSelect');
             if (!sel) return;
             const prev = sel.value;
+            const groups = Versions.groupByUploader ? Versions.groupByUploader(items) : [];
             const options = ['<option value="synth" style="background: #060913; color: #fff;">Sintetizado</option>'];
-            (items || []).forEach((r) => {
-                const range = (r.verseStart && r.verseEnd) ? ` ${r.verseStart}–${r.verseEnd}` : '';
-                const label = `${r.uploaderName || 'Voz real'}${range}`;
-                options.push(`<option value="real:${this.escape(r.id)}" style="background: #060913; color: #fff;">${this.escape(label)}</option>`);
+            groups.forEach((g) => {
+                const label = `${g.uploaderName || 'Rabino'} (versión)`;
+                options.push(`<option value="version:${this.escape(g.key)}" style="background: #060913; color: #fff;">${this.escape(label)}</option>`);
             });
             sel.innerHTML = options.join('');
             const stillThere = Array.from(sel.options).some((o) => o.value === prev);
-            sel.value = stillThere ? prev : 'synth';
-            if (!stillThere && window.App && App.setAudioSource) {
-                App.setAudioSource('synth');
+            const next = stillThere ? prev : 'synth';
+            sel.value = next;
+            if (window.App) {
+                if (!stillThere && App.setAudioSource) App.setAudioSource('synth');
+                else {
+                    App.state.audioSourceValue = next;
+                    App.state.audioSource = next === 'synth' ? 'synth' : 'real';
+                }
             }
         },
 
-        getSelectedRecording() {
+        setSelectValue(value) {
             const sel = document.getElementById('playerSourceSelect');
-            const val = sel ? sel.value : 'synth';
-            const id = (window.App && App.state.realRecordingId) ||
-                (val && val.startsWith('real:') ? val.slice(5) : null);
-            if (!id) return null;
-            return (this.state.approvedItems || []).find((r) => r.id === id) || null;
-        },
-
-        findCoveringRecording(verseIndex) {
-            const items = this.state.approvedItems || [];
-            const covering = items.find((r) => {
-                const start = r.verseStart ? r.verseStart - 1 : 0;
-                const end = r.verseEnd ? r.verseEnd - 1 : ((this.state.current.verseCount || 1) - 1);
-                return verseIndex >= start && verseIndex <= end;
-            });
-            return covering || items[0] || null;
-        },
-
-        useRecordingInPlayer(id, verseStart, verseEnd, durationMs) {
-            const sel = document.getElementById('playerSourceSelect');
-            const value = `real:${id}`;
             if (sel) {
                 if (![...sel.options].some((o) => o.value === value)) {
                     const opt = document.createElement('option');
                     opt.value = value;
-                    opt.textContent = 'Voz real';
+                    opt.textContent = value.startsWith('version:') ? 'Versión' : 'Voz real';
                     opt.style.background = '#060913';
                     opt.style.color = '#fff';
                     sel.appendChild(opt);
                 }
                 sel.value = value;
             }
-            if (!(this.state.approvedItems || []).some((r) => r.id === id)) {
+            if (window.App && App.setAudioSource) App.setAudioSource(value);
+        },
+
+        useVersionInPlayer(versionKey) {
+            const value = `version:${versionKey}`;
+            this.setSelectValue(value);
+            const clips = (this.state.approvedItems || []).filter((r) => Versions.versionKey(r) === versionKey);
+            const count = this.state.current.verseCount || 0;
+            const startIdx = Versions.nextCoveredVerse ? Versions.nextCoveredVerse(clips, 0, count) : 0;
+            if (window.App) {
+                App.revealPlayerDock();
+                App.playFromVerse(Math.max(0, startIdx));
+            }
+        },
+
+        useRecordingInPlayer(id, verseStart, verseEnd, durationMs) {
+            const value = `real:${id}`;
+            if (!(this.state.approvedItems || []).some((r) => String(r.id) === String(id))) {
                 this.state.approvedItems = this.state.approvedItems || [];
                 this.state.approvedItems.push({ id, verseStart, verseEnd, durationMs });
             }
+            this.setSelectValue(value);
             if (window.App) {
-                App.state.audioSource = 'real';
-                App.state.realRecordingId = id;
-                const modeSelect = document.getElementById('playerAudioModeSelect');
-                if (modeSelect) modeSelect.disabled = true;
                 App.revealPlayerDock();
                 const startIdx = verseStart ? verseStart - 1 : 0;
                 App.playFromVerse(startIdx);
@@ -449,10 +759,22 @@
         },
 
         playForVerse(verseIndex) {
-            const rec = this.getSelectedRecording() || this.findCoveringRecording(verseIndex);
+            const clips = this.clipsForSelection();
+            const count = this.state.current.verseCount || 0;
+            let idx = verseIndex;
+            let rec = Versions.pickClipForVerse ? Versions.pickClipForVerse(clips, idx, count) : (clips[0] || null);
+            if (!rec && Versions.nextCoveredVerse) {
+                const next = Versions.nextCoveredVerse(clips, idx, count);
+                if (next >= 0) {
+                    idx = next;
+                    rec = Versions.pickClipForVerse(clips, idx, count);
+                    if (window.App) App.state.playIndex = idx;
+                }
+            }
             if (!rec) {
                 if (window.App) {
                     App.state.audioSource = 'synth';
+                    App.state.audioSourceValue = 'synth';
                     const sel = document.getElementById('playerSourceSelect');
                     if (sel) sel.value = 'synth';
                     const modeSelect = document.getElementById('playerAudioModeSelect');
@@ -461,7 +783,28 @@
                 }
                 return;
             }
-            this.playRealRecording(rec.id, rec.verseStart, rec.verseEnd, rec.durationMs, verseIndex, { fromApp: true });
+            this.state.playingClip = rec;
+            const runEnd = Versions.sameClipRunEnd ? Versions.sameClipRunEnd(clips, idx, count) : idx;
+            this.state.playingRunEnd = runEnd;
+            this.playRealRecording(rec.id, rec.verseStart, rec.verseEnd, rec.durationMs, idx, {
+                fromApp: true,
+                runEnd
+            });
+        },
+
+        // Tras terminar un clip o un tramo: siguiente bloque de la misma versión.
+        advanceAfterClip() {
+            const count = this.state.current.verseCount || 0;
+            const clips = this.clipsForSelection();
+            if (!clips.length) return false;
+            const from = (this.state.playingRunEnd >= 0 ? this.state.playingRunEnd : (window.App ? App.state.playIndex : 0)) + 1;
+            const next = Versions.nextCoveredVerse
+                ? Versions.nextCoveredVerse(clips, from, count)
+                : -1;
+            if (next < 0) return false;
+            if (window.App) App.state.playIndex = next;
+            this.playForVerse(next);
+            return true;
         },
 
         setPlaybackRate(rate) {
@@ -473,7 +816,6 @@
         playRealRecording(id, verseStart, verseEnd, durationMs, startVerseIndex, opts) {
             const fromApp = opts && opts.fromApp;
             this.stopRealRecording();
-            // Detener el sintetizador solo si el clic vino del panel, no del reproductor (ya pausó).
             if (!fromApp && window.App && window.App.stopAudio) window.App.stopAudio();
 
             const gen = (this.state.realGeneration || 0) + 1;
@@ -492,10 +834,11 @@
             const span = Math.max(1, (endIdx - startIdx) + 1);
             const targetIdx = Math.min(Math.max(startVerseIndex == null ? startIdx : startVerseIndex, startIdx), endIdx);
 
-            // Preferimos durationMs de la BD: el stream a veces deja audio.duration en Infinity.
+            const runEnd = (opts && typeof opts.runEnd === 'number') ? opts.runEnd : endIdx;
             const knownTotalSec = durationMs ? (durationMs / 1000) : 0;
             let lastIdx = -1;
             let didSeek = false;
+            let handedOff = false;
 
             const totalSeconds = () => knownTotalSec || (isFinite(audio.duration) ? audio.duration : 0);
 
@@ -503,6 +846,13 @@
                 const totalSec = totalSeconds();
                 if (!totalSec) return;
                 audio.currentTime = ((vIdx - startIdx) / span) * totalSec;
+            };
+
+            const handOff = () => {
+                if (handedOff || this.state.realGeneration !== gen) return;
+                handedOff = true;
+                if (window.App && App.onRealAudioEnded) App.onRealAudioEnded();
+                else this.stopRealRecording();
             };
 
             const tick = () => {
@@ -520,6 +870,9 @@
                         if (audio.currentTime - offset > 0.2) audio.currentTime = offset;
                         idx = stay;
                     }
+                } else if (idx > runEnd) {
+                    handOff();
+                    return;
                 }
 
                 if (window.App && App.onRealPlaybackTick) {
@@ -548,8 +901,7 @@
             });
             audio.addEventListener('ended', () => {
                 if (this.state.realGeneration !== gen) return;
-                if (window.App && App.onRealAudioEnded) App.onRealAudioEnded();
-                else this.stopRealRecording();
+                handOff();
             });
             audio.addEventListener('error', () => {
                 if (this.state.realGeneration !== gen) return;
@@ -601,34 +953,55 @@
                 return;
             }
 
-            let items = [];
-            try {
-                const res = await fetch(this.api.queue('pending'));
-                if (res.ok) {
-                    const data = await res.json();
-                    items = data.recordings || [];
-                }
-            } catch (e) { /* degradar */ }
+            const load = async (status) => {
+                try {
+                    const res = await fetch(this.api.queue(status), {
+                        credentials: 'include',
+                        headers: await this.authHeaders()
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        return data.recordings || [];
+                    }
+                } catch (e) { /* degradar */ }
+                return [];
+            };
+
+            const pending = await load('pending');
+            const approved = await load('approved');
 
             section.classList.remove('hidden');
-            const rows = items.length
-                ? items.map((r) => `
-                    <div class="recording-item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);margin-bottom:8px;">
-                        <div>
-                            <div style="font-weight:600;">${this.escape(r.uploaderName || 'Rabino')} · ${this.escape(r.parashaId)}/${this.escape(r.aliyah)}</div>
-                            <div style="font-size:12px;color:var(--color-text-muted);">${(r.verseStart && r.verseEnd) ? `Versículos ${r.verseStart}–${r.verseEnd}` : 'Aliyá completa'}</div>
-                        </div>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <audio controls src="${this.api.audio(r.id)}" style="height:34px;"></audio>
-                            <button class="btn-primary" data-mod="approved" data-id="${r.id}" style="padding:6px 12px;">Aprobar</button>
-                            <button class="btn-secondary" data-mod="rejected" data-id="${r.id}" style="padding:6px 12px;">Rechazar</button>
-                        </div>
-                    </div>`).join('')
-                : '<p style="color:var(--color-text-muted);font-size:14px;">No hay grabaciones pendientes.</p>';
+            const rowHtml = (r, actions) => `
+                <div class="recording-item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);margin-bottom:8px;">
+                    <div>
+                        <div style="font-weight:600;">${this.escape(r.uploaderName || 'Rabino')} · ${this.escape(r.parashaId)}/${this.escape(r.aliyah)}</div>
+                        <div style="font-size:12px;color:var(--color-text-muted);">${(r.verseStart && r.verseEnd) ? `Versículos ${r.verseStart}–${r.verseEnd}` : 'Aliá completa'}</div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        <audio controls src="${this.api.audio(r.id)}" style="height:34px;"></audio>
+                        ${actions}
+                    </div>
+                </div>`;
+
+            const pendingRows = pending.length
+                ? pending.map((r) => rowHtml(r, `
+                    <button class="btn-primary" data-mod="approved" data-id="${r.id}" style="padding:6px 12px;">Aprobar</button>
+                    <button class="btn-secondary" data-mod="rejected" data-id="${r.id}" style="padding:6px 12px;">Rechazar</button>
+                `)).join('')
+                : '<p style="color:var(--color-text-muted);font-size:14px;">No hay grabaciones pendientes. Las tomas de rabino se publican al instante.</p>';
+
+            const approvedRows = approved.length
+                ? approved.slice(0, 20).map((r) => rowHtml(r, `
+                    <button class="btn-secondary" data-mod="rejected" data-id="${r.id}" style="padding:6px 12px;">Retirar</button>
+                `)).join('')
+                : '<p style="color:var(--color-text-muted);font-size:14px;">No hay referencias publicadas.</p>';
 
             section.innerHTML = `
                 <h3 class="section-title">Moderación de grabaciones (admin)</h3>
-                <div>${rows}</div>
+                <h4 style="margin:8px 0;color:var(--color-text-secondary);font-size:14px;">Pendientes</h4>
+                <div>${pendingRows}</div>
+                <h4 style="margin:16px 0 8px;color:var(--color-text-secondary);font-size:14px;">Publicadas (se pueden retirar)</h4>
+                <div>${approvedRows}</div>
             `;
 
             section.querySelectorAll('[data-mod]').forEach((btn) => {
@@ -640,7 +1013,8 @@
             try {
                 const res = await fetch(this.api.moderate(id), {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    credentials: 'include',
+                    headers: { 'content-type': 'application/json', ...(await this.authHeaders()) },
                     body: JSON.stringify({ status })
                 });
                 if (res.ok) {

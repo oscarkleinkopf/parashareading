@@ -23,7 +23,7 @@ No sustituye a un maestro o baal koreh. Complementa la práctica entre clases.
 
 - 54 Parashot, Aliyot y modo verso a verso (flashcards).
 - Memorización progresiva (3 niveles) más ajustes finos (ocultar tropos, traducción, repetir versículo).
-- Grabación con **micrófono**, subida de archivos y biblioteca comunitaria (rabinos con Netlify Identity + moderación).
+- Grabación con **micrófono**, subida de archivos y biblioteca de **versiones de referencia** (un rabino = una versión; se puede corregir un tramo sin repetir toda la Aliá).
 - Fuente de audio: síntesis de tropos o voz real sincronizada por versículo.
 - PWA instalable.
 

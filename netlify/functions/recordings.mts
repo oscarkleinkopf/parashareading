@@ -36,6 +36,7 @@ async function listRecordings(req: Request): Promise<Response> {
       .orderBy(desc(recordings.createdAt));
 
     // No exponemos blobKey; en su lugar entregamos una URL de streaming same-origin.
+    // uploaderId agrupa tomas del mismo rabino como "versión" (toma completa + parches).
     const items = rows.map((r) => ({
       id: r.id,
       parashaId: r.parashaId,
@@ -43,6 +44,7 @@ async function listRecordings(req: Request): Promise<Response> {
       verseStart: r.verseStart,
       verseEnd: r.verseEnd,
       durationMs: r.durationMs,
+      uploaderId: r.uploaderId,
       uploaderName: r.uploaderName,
       tradition: r.tradition,
       createdAt: r.createdAt,
@@ -107,11 +109,21 @@ async function uploadRecording(req: Request): Promise<Response> {
     uploaderId: user.id,
     uploaderName: user.name || user.email || "Rabino",
     tradition: String(form.get("tradition") || "ashkenazi"),
-    status: "pending",
+    // Rabino/admin: queda como referencia pública al instante.
+    // Otros roles (si se habilitan) siguen pendientes de moderación.
+    status: canContribute(user) ? "approved" : "pending",
   };
 
   const [created] = await db.insert(recordings).values(row).returning();
-  return jsonResponse({ recording: { id: created.id, status: created.status } }, 201);
+  return jsonResponse({
+    recording: {
+      id: created.id,
+      status: created.status,
+      verseStart: created.verseStart,
+      verseEnd: created.verseEnd,
+      uploaderId: created.uploaderId,
+    },
+  }, 201);
 }
 
 export const config: Config = {
