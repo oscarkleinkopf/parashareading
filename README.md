@@ -48,3 +48,9 @@ Para Identity, Functions y grabaciones comunitarias:
 npm install
 npx netlify dev
 ```
+
+## Licencia
+
+- **Código:** [MIT](LICENSE). Copyright (c) 2026 Osias Kleinkopf.
+- **Contenido propio** (traducciones, fonética, explicaciones y guías): [CC BY-NC-SA 4.0](LICENSE-CONTENT.md).
+- **Material de terceros** (texto hebreo de la Torá, te'amim y grabaciones): no cubierto; ver [THIRD-PARTY.md](THIRD-PARTY.md).

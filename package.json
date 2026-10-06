@@ -1,6 +1,7 @@
 {
   "name": "cantoral-de-tora",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Cantoral de Torá — PWA para aprender a leer y cantar la parashá (melodía sincronizada + grabaciones de rabinos).",
